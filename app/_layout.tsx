@@ -1,16 +1,50 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import React from 'react';
 import 'react-native-reanimated';
 
+import { AuthWrapper } from '@/components/auth/auth-wrapper';
+import { ThemedText } from '@/components/themed-text';
+import { useAuth } from '@/hooks/use-auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useFrameworkReady } from '@/hooks/use-framework-ready';
+import { useMusic } from '@/hooks/use-music';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { ActivityIndicator, View } from 'react-native';
 
 export const unstable_settings = {
   anchor: '(tabs)',
 };
 
 export default function RootLayout() {
+  useFrameworkReady();
   const colorScheme = useColorScheme();
+  const { authState, loading } = useAuth();
+  const primaryColor = useThemeColor({}, 'primary');
+  
+  // Initialize music
+  useMusic();
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={primaryColor} />
+        <ThemedText style={{ marginTop: 16, fontSize: 16 }}>
+          Завантаження...
+        </ThemedText>
+      </View>
+    );
+  }
+
+  if (!authState.isAuthenticated) {
+    return (
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <AuthWrapper />
+        <StatusBar style="auto" />
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>

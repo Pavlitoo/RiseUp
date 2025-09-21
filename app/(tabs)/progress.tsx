@@ -2,19 +2,21 @@ import { Link } from 'expo-router';
 import React from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 
+import { Character } from '@/components/character';
 import { DailyStatsComponent } from '@/components/daily-stats';
-import { HabitCard } from '@/components/habit-card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useHabits } from '@/hooks/use-habits';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useTranslations } from '@/hooks/use-translations';
 
-export default function HomeScreen() {
-  const { habits, dailyStats, loading, toggleHabit } = useHabits();
+export default function ProgressScreen() {
+  const { character, dailyStats, loading } = useHabits();
   const t = useTranslations();
   const backgroundColor = useThemeColor({}, 'background');
   const primaryColor = useThemeColor({}, 'primary');
+  const cardBackground = useThemeColor({}, 'cardBackground');
+  const borderColor = useThemeColor({}, 'border');
 
   if (loading) {
     return (
@@ -30,33 +32,43 @@ export default function HomeScreen() {
       <ThemedView style={styles.content}>
         <View style={styles.header}>
           <ThemedText type="title" style={styles.title}>
-            🌟 RiseUp
+            {t.yourProgress}
           </ThemedText>
           <ThemedText style={styles.subtitle}>
-            {t.myHabits}
+            {t.characterDevelopment}
           </ThemedText>
         </View>
+
+        <ThemedView style={[styles.characterContainer, { backgroundColor: cardBackground, borderColor }]}>
+          <Character character={character} />
+        </ThemedView>
 
         <DailyStatsComponent stats={dailyStats} />
 
-        <View style={styles.habitsSection}>
-          <ThemedText type="subtitle" style={styles.sectionTitle}>
-            {t.myHabits}
+        <ThemedView style={[styles.tipsContainer, { backgroundColor: cardBackground, borderColor }]}>
+          <ThemedText type="subtitle" style={styles.tipsTitle}>
+            {t.tips}
           </ThemedText>
-          
-          {habits.map((habit) => (
-            <HabitCard
-              key={habit.id}
-              habit={habit}
-              onToggle={toggleHabit}
-            />
-          ))}
-        </View>
+          <View style={styles.tipsList}>
+            <ThemedText style={styles.tip}>
+              {t.tip1}
+            </ThemedText>
+            <ThemedText style={styles.tip}>
+              {t.tip2}
+            </ThemedText>
+            <ThemedText style={styles.tip}>
+              {t.tip3}
+            </ThemedText>
+            <ThemedText style={styles.tip}>
+              {t.tip4}
+            </ThemedText>
+          </View>
+        </ThemedView>
 
-        <Link href="/progress" style={styles.progressButton}>
+        <Link href="/" style={styles.backButton}>
           <ThemedView style={[styles.button, { backgroundColor: primaryColor }]}>
             <ThemedText style={[styles.buttonText, { color: 'white' }]}>
-              {t.viewProgress}
+              {t.backToHabits}
             </ThemedText>
           </ThemedView>
         </Link>
@@ -96,15 +108,47 @@ const styles = StyleSheet.create({
     fontSize: 16,
     opacity: 0.7,
   },
-  habitsSection: {
-    marginTop: 20,
+  characterContainer: {
+    borderRadius: 16,
+    marginVertical: 10,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  sectionTitle: {
-    marginBottom: 16,
+  tipsContainer: {
+    borderRadius: 16,
+    padding: 20,
+    marginVertical: 10,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  tipsTitle: {
     textAlign: 'center',
+    marginBottom: 16,
   },
-  progressButton: {
-    marginTop: 30,
+  tipsList: {
+    gap: 8,
+  },
+  tip: {
+    fontSize: 14,
+    lineHeight: 20,
+    opacity: 0.8,
+  },
+  backButton: {
+    marginTop: 20,
     marginBottom: 20,
   },
   button: {
