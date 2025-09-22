@@ -1,0 +1,111 @@
+import { Achievement } from '@/types/achievement';
+
+export const defaultAchievements: Achievement[] = [
+  // Streak achievements
+  {
+    id: 'streak_3',
+    name: 'Перші кроки',
+    description: 'Виконай будь-яку звичку 3 дні поспіль',
+    icon: '🔥',
+    unlocked: false,
+    type: 'streak',
+    requirement: 3,
+    progress: 0,
+  },
+  {
+    id: 'streak_7',
+    name: 'Тиждень сили',
+    description: 'Виконай будь-яку звичку 7 днів поспіль',
+    icon: '💪',
+    unlocked: false,
+    type: 'streak',
+    requirement: 7,
+    progress: 0,
+  },
+  {
+    id: 'streak_30',
+    name: 'Місяць дисципліни',
+    description: 'Виконай будь-яку звичку 30 днів поспіль',
+    icon: '👑',
+    unlocked: false,
+    type: 'streak',
+    requirement: 30,
+    progress: 0,
+  },
+  
+  // Completion achievements
+  {
+    id: 'complete_100',
+    name: 'Сотня',
+    description: 'Виконай 100 звичок загалом',
+    icon: '💯',
+    unlocked: false,
+    type: 'completion',
+    requirement: 100,
+    progress: 0,
+  },
+  {
+    id: 'perfect_day',
+    name: 'Ідеальний день',
+    description: 'Виконай всі звички за один день',
+    icon: '⭐',
+    unlocked: false,
+    type: 'completion',
+    requirement: 1,
+    progress: 0,
+  },
+  {
+    id: 'perfect_week',
+    name: 'Ідеальний тиждень',
+    description: 'Виконай всі звички протягом тижня',
+    icon: '🌟',
+    unlocked: false,
+    type: 'completion',
+    requirement: 7,
+    progress: 0,
+  },
+  
+  // Level achievements
+  {
+    id: 'level_5',
+    name: 'Новачок',
+    description: 'Досягни 5 рівня',
+    icon: '🎯',
+    unlocked: false,
+    type: 'level',
+    requirement: 5,
+    progress: 0,
+  },
+  {
+    id: 'level_10',
+    name: 'Експерт',
+    description: 'Досягни 10 рівня',
+    icon: '🏆',
+    unlocked: false,
+    type: 'level',
+    requirement: 10,
+    progress: 0,
+  },
+  
+  // Special achievements
+  {
+    id: 'early_bird',
+    name: 'Рання пташка',
+    description: 'Виконай звичку до 7:00 ранку',
+    icon: '🌅',
+    unlocked: false,
+    type: 'special',
+    requirement: 1,
+    progress: 0,
+  },
+  {
+    id: 'night_owl',
+    name: 'Нічна сова',
+    description: 'Виконай звичку після 22:00',
+    icon: '🦉',
+    unlocked: false,
+    type: 'special',
+    requirement: 1,
+    progress: 0,
+  },
+];

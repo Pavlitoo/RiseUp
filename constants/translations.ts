@@ -28,6 +28,8 @@ export const translations = {
     // Habits
     habits: 'Звички',
     progress: 'Прогрес',
+    statistics: 'Статистика',
+    achievements: 'Досягнення',
     myHabits: 'Мої звички',
     dailyStats: 'Статистика дня',
     viewProgress: 'Переглянути прогрес 📈',
@@ -107,6 +109,8 @@ export const translations = {
     // Habits
     habits: 'Habits',
     progress: 'Progress',
+    statistics: 'Statistics',
+    achievements: 'Achievements',
     myHabits: 'My Habits',
     dailyStats: 'Daily Stats',
     viewProgress: 'View Progress 📈',

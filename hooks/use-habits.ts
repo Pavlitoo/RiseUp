@@ -1,11 +1,13 @@
 import { CharacterState, DailyStats, Habit } from '@/types/habit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect } from 'react';
+import { useAchievements } from './use-achievements';
 import { createGlobalState } from './use-global-state';
 
 const HABITS_KEY = '@riseup_habits';
 const CHARACTER_KEY = '@riseup_character';
 const STATS_KEY = '@riseup_stats';
+const TOTAL_COMPLETIONS_KEY = '@riseup_total_completions';
 
 const defaultHabits: Habit[] = [
   {
@@ -51,12 +53,14 @@ interface HabitsState {
   habits: Habit[];
   character: CharacterState;
   dailyStats: DailyStats | null;
+  totalCompletions: number;
 }
 
 const defaultHabitsState: HabitsState = {
   habits: defaultHabits,
   character: defaultCharacter,
   dailyStats: null,
+  totalCompletions: 0,
 };
 
 // Створюємо глобальний стан для звичок
@@ -64,6 +68,7 @@ const useGlobalHabitsState = createGlobalState(defaultHabitsState);
 
 export function useHabits() {
   const [state, setState] = useGlobalHabitsState();
+  const { checkAchievements } = useAchievements();
 
   // Завантажуємо дані тільки один раз при ініціалізації
   useEffect(() => {
@@ -76,20 +81,24 @@ export function useHabits() {
         const habitsData = await AsyncStorage.getItem(HABITS_KEY);
         const characterData = await AsyncStorage.getItem(CHARACTER_KEY);
         const statsData = await AsyncStorage.getItem(STATS_KEY);
+        const totalCompletionsData = await AsyncStorage.getItem(TOTAL_COMPLETIONS_KEY);
 
         const habits = habitsData ? JSON.parse(habitsData) : defaultHabits;
         const character = characterData ? JSON.parse(characterData) : defaultCharacter;
         const dailyStats = statsData ? JSON.parse(statsData) : null;
+        const totalCompletions = totalCompletionsData ? JSON.parse(totalCompletionsData) : 0;
 
         console.log('✅ Loaded habits:', habits);
         console.log('✅ Loaded character:', character);
         console.log('✅ Loaded stats:', dailyStats);
+        console.log('✅ Loaded total completions:', totalCompletions);
 
         if (isMounted) {
           setState({
             habits,
             character,
             dailyStats,
+            totalCompletions,
           });
         }
       } catch (error) {
@@ -180,10 +189,18 @@ export function useHabits() {
     const today = new Date().toDateString();
     
     setState(prevState => {
+      let newTotalCompletions = prevState.totalCompletions;
       const updatedHabits = prevState.habits.map(habit => {
         if (habit.id === habitId) {
           const wasCompleted = habit.completed;
           const newCompleted = !wasCompleted;
+          
+          // Update total completions
+          if (newCompleted && !wasCompleted) {
+            newTotalCompletions += 1;
+          } else if (!newCompleted && wasCompleted) {
+            newTotalCompletions = Math.max(0, newTotalCompletions - 1);
+          }
           
           const updatedHabit = {
             ...habit,
@@ -198,6 +215,11 @@ export function useHabits() {
         return habit;
       });
 
+      // Save total completions
+      AsyncStorage.setItem(TOTAL_COMPLETIONS_KEY, JSON.stringify(newTotalCompletions))
+        .then(() => console.log('✅ Total completions saved'))
+        .catch(error => console.error('❌ Error saving total completions:', error));
+
       // Зберігаємо в AsyncStorage
       AsyncStorage.setItem(HABITS_KEY, JSON.stringify(updatedHabits))
         .then(() => {
@@ -205,15 +227,33 @@ export function useHabits() {
           // Оновлюємо персонажа та статистику
           updateCharacterProgress(updatedHabits);
           updateDailyStats(updatedHabits);
+          
+          // Check achievements
+          const streaks = updatedHabits.reduce((acc, habit) => {
+            acc[habit.id] = habit.streak;
+            return acc;
+          }, {} as { [key: string]: number });
+          
+          const completedToday = updatedHabits.filter(h => h.completed).length;
+          const perfectDays = completedToday === updatedHabits.length ? 1 : 0;
+          
+          checkAchievements({
+            streaks,
+            totalCompletions: newTotalCompletions,
+            perfectDays,
+            level: prevState.character.level,
+            currentTime: new Date(),
+          });
         })
         .catch(error => console.error('❌ Error saving habits:', error));
 
       return {
         ...prevState,
         habits: updatedHabits,
+        totalCompletions: newTotalCompletions,
       };
     });
-  }, [setState, updateCharacterProgress, updateDailyStats]);
+  }, [setState, updateCharacterProgress, updateDailyStats, checkAchievements]);
 
   const resetDailyHabits = useCallback(async () => {
     setState(prevState => {
@@ -237,6 +277,7 @@ export function useHabits() {
     habits: state.habits,
     character: state.character,
     dailyStats: state.dailyStats,
+    totalCompletions: state.totalCompletions,
     loading: false, // Завжди false, оскільки стан завантажується асинхронно
     toggleHabit,
     resetDailyHabits,

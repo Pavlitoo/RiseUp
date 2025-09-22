@@ -1,11 +1,14 @@
 import { Link } from 'expo-router';
-import React from 'react';
+import React, { useState } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 
+import { AchievementModal } from '@/components/achievement-modal';
 import { DailyStatsComponent } from '@/components/daily-stats';
 import { HabitCard } from '@/components/habit-card';
+import { MotivationalQuote } from '@/components/motivational-quote';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useAchievements } from '@/hooks/use-achievements';
 import { useHabits } from '@/hooks/use-habits';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useLanguageKey, useTranslations } from '@/hooks/use-translations';
@@ -19,12 +22,26 @@ import Animated, {
 
 export default function HomeScreen() {
   const { habits, dailyStats, toggleHabit } = useHabits(); // Видалили loading
+  const { newUnlocked, clearNewUnlocked } = useAchievements();
   const t = useTranslations();
   const backgroundColor = useThemeColor({}, 'background');
   const primaryColor = useThemeColor({}, 'primary');
   const languageKey = useLanguageKey();
+  const [showAchievement, setShowAchievement] = useState(false);
 
   const headerOpacity = useSharedValue(0);
+
+  // Show achievement modal when new achievement is unlocked
+  React.useEffect(() => {
+    if (newUnlocked.length > 0) {
+      setShowAchievement(true);
+    }
+  }, [newUnlocked]);
+
+  const handleCloseAchievement = () => {
+    setShowAchievement(false);
+    clearNewUnlocked();
+  };
 
   React.useEffect(() => {
     // Завжди показуємо анімацію, оскільки loading більше немає
@@ -58,6 +75,10 @@ export default function HomeScreen() {
           <DailyStatsComponent stats={dailyStats} />
         </Animated.View>
 
+        <Animated.View entering={FadeIn.delay(300).duration(800)}>
+          <MotivationalQuote />
+        </Animated.View>
+
         <Animated.View 
           style={styles.habitsSection}
           entering={SlideInDown.delay(400).duration(800)}
@@ -89,6 +110,12 @@ export default function HomeScreen() {
           </Link>
         </Animated.View>
       </ThemedView>
+      
+      <AchievementModal
+        achievement={newUnlocked[0] || null}
+        visible={showAchievement}
+        onClose={handleCloseAchievement}
+      />
     </ScrollView>
   );
 }
