@@ -1,6 +1,7 @@
 import { useAuth } from '@/hooks/use-auth';
 import { Audio } from 'expo-av';
 import { useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 
 export function useMusic() {
   const { authState } = useAuth();
@@ -10,7 +11,26 @@ export function useMusic() {
 
   useEffect(() => {
     loadSound();
+    
+    // Слухаємо зміни стану додатку
+    const handleAppStateChange = (nextAppState: string) => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        // Зупиняємо музику коли додаток йде в фон
+        if (sound && isPlaying) {
+          pauseSound();
+        }
+      } else if (nextAppState === 'active') {
+        // Відновлюємо музику коли додаток повертається в фокус
+        if (sound && authState.settings.musicEnabled && !isPlaying) {
+          playSound();
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
     return () => {
+      subscription?.remove();
       cleanup();
     };
   }, []);
@@ -26,9 +46,14 @@ export function useMusic() {
     }
   }, [authState.settings.musicEnabled, isLoaded, sound, isPlaying]);
 
-  const cleanup = () => {
+  const cleanup = async () => {
     if (sound) {
-      sound.unloadAsync();
+      try {
+        await sound.stopAsync();
+        await sound.unloadAsync();
+      } catch (error) {
+        console.error('Error cleaning up sound:', error);
+      }
     }
   };
 
@@ -37,7 +62,7 @@ export function useMusic() {
       // Set up audio mode
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
-        staysActiveInBackground: true,
+        staysActiveInBackground: false, // Змінено на false
         playsInSilentModeIOS: true,
         shouldDuckAndroid: true,
         playThroughEarpieceAndroid: false,
@@ -52,6 +77,18 @@ export function useMusic() {
           volume: 0.3,
         }
       );
+      
+      // Додаємо обробник завершення відтворення
+      newSound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded) {
+          setIsPlaying(status.isPlaying);
+          
+          // Якщо відтворення зупинилося не через наш виклик
+          if (!status.isPlaying && status.positionMillis === 0) {
+            setIsPlaying(false);
+          }
+        }
+      });
       
       setSound(newSound);
       setIsLoaded(true);
