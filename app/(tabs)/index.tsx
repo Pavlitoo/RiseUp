@@ -1,6 +1,6 @@
 import { Link } from 'expo-router';
 import React from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
 
 import { DailyStatsComponent } from '@/components/daily-stats';
 import { HabitCard } from '@/components/habit-card';
@@ -18,7 +18,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 export default function HomeScreen() {
-  const { habits, dailyStats, loading, toggleHabit } = useHabits();
+  const { habits, dailyStats, toggleHabit } = useHabits(); // Видалили loading
   const t = useTranslations();
   const backgroundColor = useThemeColor({}, 'background');
   const primaryColor = useThemeColor({}, 'primary');
@@ -27,10 +27,9 @@ export default function HomeScreen() {
   const headerOpacity = useSharedValue(0);
 
   React.useEffect(() => {
-    if (!loading) {
-      headerOpacity.value = withTiming(1, { duration: 1000 });
-    }
-  }, [loading]);
+    // Завжди показуємо анімацію, оскільки loading більше немає
+    headerOpacity.value = withTiming(1, { duration: 1000 });
+  }, []);
 
   const animatedHeaderStyle = useAnimatedStyle(() => {
     return {
@@ -42,14 +41,6 @@ export default function HomeScreen() {
       ],
     };
   });
-  if (loading) {
-    return (
-      <ThemedView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={primaryColor} />
-        <ThemedText style={styles.loadingText}>Loading...</ThemedText>
-      </ThemedView>
-    );
-  }
 
   return (
     <ScrollView key={languageKey} style={[styles.container, { backgroundColor }]}>
@@ -105,15 +96,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
   },
   content: {
     flex: 1,

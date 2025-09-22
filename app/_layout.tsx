@@ -5,14 +5,12 @@ import React from 'react';
 import 'react-native-reanimated';
 
 import { AuthWrapper } from '@/components/auth/auth-wrapper';
-import { ThemedText } from '@/components/themed-text';
 import { useAuth } from '@/hooks/use-auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFrameworkReady } from '@/hooks/use-framework-ready';
 import { useMusic } from '@/hooks/use-music';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useLanguageKey } from '@/hooks/use-translations';
-import { ActivityIndicator, View } from 'react-native';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -21,23 +19,15 @@ export const unstable_settings = {
 export default function RootLayout() {
   useFrameworkReady();
   const colorScheme = useColorScheme();
-  const { authState, loading } = useAuth();
+  const { authState } = useAuth(); // Видалили loading, оскільки тепер завжди false
   const primaryColor = useThemeColor({}, 'primary');
   const languageKey = useLanguageKey();
   
   // Initialize music
   useMusic();
 
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={primaryColor} />
-        <ThemedText style={{ marginTop: 16, fontSize: 16 }}>
-          Завантаження...
-        </ThemedText>
-      </View>
-    );
-  }
+  // Видалили loading screen, оскільки тепер стан завантажується асинхронно
+  // і не блокує інтерфейс
 
   if (!authState.isAuthenticated) {
     return (

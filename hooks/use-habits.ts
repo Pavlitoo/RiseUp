@@ -1,6 +1,7 @@
 import { CharacterState, DailyStats, Habit } from '@/types/habit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
+import { createGlobalState } from './use-global-state';
 
 const HABITS_KEY = '@riseup_habits';
 const CHARACTER_KEY = '@riseup_character';
@@ -46,128 +47,111 @@ const defaultCharacter: CharacterState = {
   state: 'normal',
 };
 
-export function useHabits() {
-  const [habits, setHabits] = useState<Habit[]>(defaultHabits);
-  const [character, setCharacter] = useState<CharacterState>(defaultCharacter);
-  const [dailyStats, setDailyStats] = useState<DailyStats | null>(null);
-  const [loading, setLoading] = useState(true);
+interface HabitsState {
+  habits: Habit[];
+  character: CharacterState;
+  dailyStats: DailyStats | null;
+}
 
+const defaultHabitsState: HabitsState = {
+  habits: defaultHabits,
+  character: defaultCharacter,
+  dailyStats: null,
+};
+
+// Створюємо глобальний стан для звичок
+const useGlobalHabitsState = createGlobalState(defaultHabitsState);
+
+export function useHabits() {
+  const [state, setState] = useGlobalHabitsState();
+
+  // Завантажуємо дані тільки один раз при ініціалізації
   useEffect(() => {
+    let isMounted = true;
+    
+    const loadData = async () => {
+      try {
+        console.log('🔄 Loading habits data from storage...');
+        
+        const habitsData = await AsyncStorage.getItem(HABITS_KEY);
+        const characterData = await AsyncStorage.getItem(CHARACTER_KEY);
+        const statsData = await AsyncStorage.getItem(STATS_KEY);
+
+        const habits = habitsData ? JSON.parse(habitsData) : defaultHabits;
+        const character = characterData ? JSON.parse(characterData) : defaultCharacter;
+        const dailyStats = statsData ? JSON.parse(statsData) : null;
+
+        console.log('✅ Loaded habits:', habits);
+        console.log('✅ Loaded character:', character);
+        console.log('✅ Loaded stats:', dailyStats);
+
+        if (isMounted) {
+          setState({
+            habits,
+            character,
+            dailyStats,
+          });
+        }
+      } catch (error) {
+        console.error('❌ Error loading habits data:', error);
+        if (isMounted) {
+          setState(defaultHabitsState);
+        }
+      }
+    };
+
     loadData();
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  const loadData = async () => {
-    try {
-      const [habitsData, characterData, statsData] = await Promise.all([
-        AsyncStorage.getItem(HABITS_KEY),
-        AsyncStorage.getItem(CHARACTER_KEY),
-        AsyncStorage.getItem(STATS_KEY),
-      ]);
-
-      if (habitsData) {
-        setHabits(JSON.parse(habitsData));
-      }
-      if (characterData) {
-        setCharacter(JSON.parse(characterData));
-      }
-      if (statsData) {
-        setDailyStats(JSON.parse(statsData));
-      }
-    } catch (error) {
-      console.error('Error loading data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const saveHabits = async (newHabits: Habit[]) => {
-    try {
-      await AsyncStorage.setItem(HABITS_KEY, JSON.stringify(newHabits));
-      setHabits(newHabits);
-    } catch (error) {
-      console.error('Error saving habits:', error);
-    }
-  };
-
-  const saveCharacter = async (newCharacter: CharacterState) => {
-    try {
-      await AsyncStorage.setItem(CHARACTER_KEY, JSON.stringify(newCharacter));
-      setCharacter(newCharacter);
-    } catch (error) {
-      console.error('Error saving character:', error);
-    }
-  };
-
-  const saveDailyStats = async (stats: DailyStats) => {
-    try {
-      await AsyncStorage.setItem(STATS_KEY, JSON.stringify(stats));
-      setDailyStats(stats);
-    } catch (error) {
-      console.error('Error saving stats:', error);
-    }
-  };
-
-  const toggleHabit = async (habitId: string) => {
-    const today = new Date().toDateString();
-    const updatedHabits = habits.map(habit => {
-      if (habit.id === habitId) {
-        const wasCompleted = habit.completed;
-        const newCompleted = !wasCompleted;
-        
-        return {
-          ...habit,
-          completed: newCompleted,
-          streak: newCompleted ? habit.streak + 1 : Math.max(0, habit.streak - 1),
-          lastCompleted: newCompleted ? today : habit.lastCompleted,
-        };
-      }
-      return habit;
-    });
-
-    // Immediately update state for instant UI feedback
-    setHabits(updatedHabits);
-
-    // Save to storage and update character in background
-    await saveHabits(updatedHabits);
-    await updateCharacterProgress(updatedHabits);
-    await updateDailyStats(updatedHabits);
-  };
-
-  const updateCharacterProgress = async (currentHabits: Habit[]) => {
+  const updateCharacterProgress = useCallback((currentHabits: Habit[]) => {
     const completedCount = currentHabits.filter(h => h.completed).length;
     const totalCount = currentHabits.length;
     const completionRate = completedCount / totalCount;
 
-    let newCharacter = { ...character };
-    
-    // Gain/lose experience based on completion rate
-    const expChange = completedCount * 20 - (totalCount - completedCount) * 10;
-    newCharacter.experience = Math.max(0, Math.min(newCharacter.maxExperience, newCharacter.experience + expChange));
+    setState(prevState => {
+      let newCharacter = { ...prevState.character };
+      
+      // Gain/lose experience based on completion rate
+      const expChange = completedCount * 20 - (totalCount - completedCount) * 10;
+      newCharacter.experience = Math.max(0, Math.min(newCharacter.maxExperience, newCharacter.experience + expChange));
 
-    // Update health based on completion rate
-    if (completionRate >= 0.8) {
-      newCharacter.health = Math.min(newCharacter.maxHealth, newCharacter.health + 10);
-      newCharacter.state = 'strong';
-    } else if (completionRate >= 0.5) {
-      newCharacter.state = 'normal';
-    } else {
-      newCharacter.health = Math.max(20, newCharacter.health - 15);
-      newCharacter.state = 'weak';
-    }
+      // Update health based on completion rate
+      if (completionRate >= 0.8) {
+        newCharacter.health = Math.min(newCharacter.maxHealth, newCharacter.health + 10);
+        newCharacter.state = 'strong';
+      } else if (completionRate >= 0.5) {
+        newCharacter.state = 'normal';
+      } else {
+        newCharacter.health = Math.max(20, newCharacter.health - 15);
+        newCharacter.state = 'weak';
+      }
 
-    // Level up if experience is maxed
-    if (newCharacter.experience >= newCharacter.maxExperience) {
-      newCharacter.level += 1;
-      newCharacter.experience = 0;
-      newCharacter.maxExperience += 50;
-      newCharacter.maxHealth += 20;
-      newCharacter.health = newCharacter.maxHealth;
-    }
+      // Level up if experience is maxed
+      if (newCharacter.experience >= newCharacter.maxExperience) {
+        newCharacter.level += 1;
+        newCharacter.experience = 0;
+        newCharacter.maxExperience += 50;
+        newCharacter.maxHealth += 20;
+        newCharacter.health = newCharacter.maxHealth;
+      }
 
-    await saveCharacter(newCharacter);
-  };
+      // Зберігаємо в AsyncStorage
+      AsyncStorage.setItem(CHARACTER_KEY, JSON.stringify(newCharacter))
+        .then(() => console.log('✅ Character saved to storage'))
+        .catch(error => console.error('❌ Error saving character:', error));
 
-  const updateDailyStats = async (currentHabits: Habit[]) => {
+      return {
+        ...prevState,
+        character: newCharacter,
+      };
+    });
+  }, [setState]);
+
+  const updateDailyStats = useCallback((currentHabits: Habit[]) => {
     const today = new Date().toDateString();
     const completedCount = currentHabits.filter(h => h.completed).length;
     const totalCount = currentHabits.length;
@@ -179,22 +163,81 @@ export function useHabits() {
       experienceGained: completedCount * 20,
     };
 
-    await saveDailyStats(stats);
-  };
-
-  const resetDailyHabits = async () => {
-    const resetHabits = habits.map(habit => ({
-      ...habit,
-      completed: false,
+    setState(prevState => ({
+      ...prevState,
+      dailyStats: stats,
     }));
-    await saveHabits(resetHabits);
-  };
+    
+    // Зберігаємо в AsyncStorage
+    AsyncStorage.setItem(STATS_KEY, JSON.stringify(stats))
+      .then(() => console.log('✅ Stats saved to storage'))
+      .catch(error => console.error('❌ Error saving stats:', error));
+  }, [setState]);
+
+  const toggleHabit = useCallback(async (habitId: string) => {
+    console.log('🔄 Toggling habit:', habitId);
+    
+    const today = new Date().toDateString();
+    
+    setState(prevState => {
+      const updatedHabits = prevState.habits.map(habit => {
+        if (habit.id === habitId) {
+          const wasCompleted = habit.completed;
+          const newCompleted = !wasCompleted;
+          
+          const updatedHabit = {
+            ...habit,
+            completed: newCompleted,
+            streak: newCompleted ? habit.streak + 1 : Math.max(0, habit.streak - 1),
+            lastCompleted: newCompleted ? today : habit.lastCompleted,
+          };
+          
+          console.log('✅ Updated habit:', updatedHabit);
+          return updatedHabit;
+        }
+        return habit;
+      });
+
+      // Зберігаємо в AsyncStorage
+      AsyncStorage.setItem(HABITS_KEY, JSON.stringify(updatedHabits))
+        .then(() => {
+          console.log('✅ Habits saved to storage');
+          // Оновлюємо персонажа та статистику
+          updateCharacterProgress(updatedHabits);
+          updateDailyStats(updatedHabits);
+        })
+        .catch(error => console.error('❌ Error saving habits:', error));
+
+      return {
+        ...prevState,
+        habits: updatedHabits,
+      };
+    });
+  }, [setState, updateCharacterProgress, updateDailyStats]);
+
+  const resetDailyHabits = useCallback(async () => {
+    setState(prevState => {
+      const resetHabits = prevState.habits.map(habit => ({
+        ...habit,
+        completed: false,
+      }));
+      
+      AsyncStorage.setItem(HABITS_KEY, JSON.stringify(resetHabits))
+        .then(() => console.log('✅ Daily habits reset'))
+        .catch(error => console.error('❌ Error resetting habits:', error));
+      
+      return {
+        ...prevState,
+        habits: resetHabits,
+      };
+    });
+  }, [setState]);
 
   return {
-    habits,
-    character,
-    dailyStats,
-    loading,
+    habits: state.habits,
+    character: state.character,
+    dailyStats: state.dailyStats,
+    loading: false, // Завжди false, оскільки стан завантажується асинхронно
     toggleHabit,
     resetDailyHabits,
   };

@@ -57,15 +57,11 @@ export function HabitCard({ habit, onToggle }: HabitCardProps) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
 
+    console.log('🎯 Habit card pressed:', habit.name, 'Current state:', habit.completed);
+
     // Animation
     scale.value = withSpring(0.95, { duration: 100 }, () => {
       scale.value = withSpring(1, { duration: 200 });
-    });
-
-    // Toggle checkbox animation
-    checkboxScale.value = withSpring(habit.completed ? 0 : 1, {
-      damping: 15,
-      stiffness: 200,
     });
 
     // Call the toggle function

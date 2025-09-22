@@ -1,6 +1,7 @@
 import { AuthState, User, UserSettings } from '@/types/user';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
+import { createGlobalState } from './use-global-state';
 
 const AUTH_KEY = '@riseup_auth';
 const SETTINGS_KEY = '@riseup_settings';
@@ -10,72 +11,61 @@ const defaultSettings: UserSettings = {
   language: 'uk',
 };
 
-export function useAuth() {
-  const [authState, setAuthState] = useState<AuthState>({
-    isAuthenticated: false,
-    user: null,
-    settings: defaultSettings,
-  });
-  const [loading, setLoading] = useState(true);
+const defaultAuthState: AuthState = {
+  isAuthenticated: false,
+  user: null,
+  settings: defaultSettings,
+};
 
+// Створюємо глобальний стан
+const useGlobalAuthState = createGlobalState(defaultAuthState);
+
+export function useAuth() {
+  const [authState, setAuthState] = useGlobalAuthState();
+
+  // Завантажуємо стан тільки один раз при ініціалізації
   useEffect(() => {
+    let isMounted = true;
+    
+    const loadAuthState = async () => {
+      try {
+        console.log('🔄 Loading auth state...');
+        
+        const authData = await AsyncStorage.getItem(AUTH_KEY);
+        const settingsData = await AsyncStorage.getItem(SETTINGS_KEY);
+
+        const user = authData ? JSON.parse(authData) : null;
+        const settings = settingsData ? JSON.parse(settingsData) : defaultSettings;
+
+        console.log('✅ Loaded user:', user);
+        console.log('✅ Loaded settings:', settings);
+
+        if (isMounted) {
+          setAuthState({
+            isAuthenticated: !!user,
+            user,
+            settings,
+          });
+        }
+      } catch (error) {
+        console.error('❌ Error loading auth state:', error);
+        if (isMounted) {
+          setAuthState(defaultAuthState);
+        }
+      }
+    };
+
     loadAuthState();
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  const loadAuthState = async () => {
+  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     try {
-      const [authData, settingsData] = await Promise.all([
-        AsyncStorage.getItem(AUTH_KEY),
-        AsyncStorage.getItem(SETTINGS_KEY),
-      ]);
-
-      const user = authData ? JSON.parse(authData) : null;
-      const settings = settingsData ? JSON.parse(settingsData) : defaultSettings;
-
-      setAuthState({
-        isAuthenticated: !!user,
-        user,
-        settings,
-      });
-    } catch (error) {
-      console.error('Error loading auth state:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const saveAuthState = async (user: User | null) => {
-    try {
-      if (user) {
-        await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(user));
-      } else {
-        await AsyncStorage.removeItem(AUTH_KEY);
-      }
-      setAuthState(prev => ({
-        ...prev,
-        isAuthenticated: !!user,
-        user,
-      }));
-    } catch (error) {
-      console.error('Error saving auth state:', error);
-    }
-  };
-
-  const saveSettings = async (settings: UserSettings) => {
-    try {
-      await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-      setAuthState(prev => ({
-        ...prev,
-        settings,
-      }));
-    } catch (error) {
-      console.error('Error saving settings:', error);
-    }
-  };
-
-  const login = async (email: string, password: string): Promise<boolean> => {
-    try {
-      // Simulate API call - in real app, this would be an actual API request
+      console.log('🔄 Attempting login for:', email);
+      
       const usersData = await AsyncStorage.getItem('@riseup_users');
       const users = usersData ? JSON.parse(usersData) : [];
       
@@ -83,24 +73,39 @@ export function useAuth() {
       
       if (user) {
         const { password: _, ...userWithoutPassword } = user;
-        await saveAuthState(userWithoutPassword);
+        
+        // Зберігаємо в AsyncStorage
+        await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(userWithoutPassword));
+        
+        // Миттєво оновлюємо глобальний стан
+        setAuthState(prev => ({
+          ...prev,
+          isAuthenticated: true,
+          user: userWithoutPassword,
+        }));
+        
+        console.log('✅ Login successful');
         return true;
       }
+      
+      console.log('❌ Login failed - invalid credentials');
       return false;
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('❌ Login error:', error);
       return false;
     }
-  };
+  }, [setAuthState]);
 
-  const register = async (email: string, password: string, name: string): Promise<boolean> => {
+  const register = useCallback(async (email: string, password: string, name: string): Promise<boolean> => {
     try {
-      // Check if user already exists
+      console.log('🔄 Attempting registration for:', email);
+      
       const usersData = await AsyncStorage.getItem('@riseup_users');
       const users = usersData ? JSON.parse(usersData) : [];
       
       if (users.find((u: any) => u.email === email)) {
-        return false; // User already exists
+        console.log('❌ Registration failed - user exists');
+        return false;
       }
 
       const newUser = {
@@ -115,31 +120,53 @@ export function useAuth() {
       await AsyncStorage.setItem('@riseup_users', JSON.stringify(users));
 
       const { password: _, ...userWithoutPassword } = newUser;
-      await saveAuthState(userWithoutPassword);
+      
+      // Зберігаємо в AsyncStorage
+      await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(userWithoutPassword));
+      
+      // Миттєво оновлюємо глобальний стан
+      setAuthState(prev => ({
+        ...prev,
+        isAuthenticated: true,
+        user: userWithoutPassword,
+      }));
+      
+      console.log('✅ Registration successful');
       return true;
     } catch (error) {
-      console.error('Register error:', error);
+      console.error('❌ Register error:', error);
       return false;
     }
-  };
+  }, [setAuthState]);
 
-  const logout = async () => {
-    await saveAuthState(null);
-  };
+  const logout = useCallback(async () => {
+    try {
+      console.log('🔄 Logging out...');
+      
+      await AsyncStorage.removeItem(AUTH_KEY);
+      
+      // Миттєво оновлюємо глобальний стан
+      setAuthState(prev => ({
+        ...prev,
+        isAuthenticated: false,
+        user: null,
+      }));
+      
+      console.log('✅ Logout successful');
+    } catch (error) {
+      console.error('❌ Logout error:', error);
+    }
+  }, [setAuthState]);
 
-  const updateProfile = async (updates: Partial<User>) => {
+  const updateProfile = useCallback(async (updates: Partial<User>) => {
     if (!authState.user) return false;
 
     try {
+      console.log('🔄 Updating profile:', updates);
+      
       const updatedUser = { ...authState.user, ...updates };
       
-      // Immediately update state for instant UI feedback
-      setAuthState(prev => ({
-        ...prev,
-        user: updatedUser,
-      }));
-
-      // Update in users storage
+      // Оновлюємо в users storage
       const usersData = await AsyncStorage.getItem('@riseup_users');
       const users = usersData ? JSON.parse(usersData) : [];
       const userIndex = users.findIndex((u: any) => u.id === authState.user!.id);
@@ -149,43 +176,49 @@ export function useAuth() {
         await AsyncStorage.setItem('@riseup_users', JSON.stringify(users));
       }
 
-      // Save to auth storage
+      // Зберігаємо в auth storage
       await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(updatedUser));
-      return true;
-    } catch (error) {
-      console.error('Update profile error:', error);
-      // Revert state on error
+      
+      // Миттєво оновлюємо глобальний стан
       setAuthState(prev => ({
         ...prev,
-        user: authState.user,
+        user: updatedUser,
       }));
+      
+      console.log('✅ Profile updated successfully');
+      return true;
+    } catch (error) {
+      console.error('❌ Update profile error:', error);
       return false;
     }
-  };
+  }, [authState.user, setAuthState]);
 
-  const updateSettings = async (updates: Partial<UserSettings>) => {
-    const newSettings = { ...authState.settings, ...updates };
-    
+  const updateSettings = useCallback(async (updates: Partial<UserSettings>) => {
     try {
-      // Save to storage first
+      console.log('🔄 Updating settings:', updates);
+      
+      const newSettings = { ...authState.settings, ...updates };
+      
+      // Зберігаємо в storage
       await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(newSettings));
       
-      // Then update state - this will trigger re-renders
+      // Миттєво оновлюємо глобальний стан
       setAuthState(prev => ({
         ...prev,
         settings: newSettings,
       }));
       
+      console.log('✅ Settings updated successfully');
       return true;
     } catch (error) {
-      console.error('Error updating settings:', error);
+      console.error('❌ Error updating settings:', error);
       return false;
     }
-  };
+  }, [authState.settings, setAuthState]);
 
   return {
     authState,
-    loading,
+    loading: false, // Завжди false, оскільки стан завантажується асинхронно
     login,
     register,
     logout,

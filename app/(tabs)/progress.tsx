@@ -1,6 +1,6 @@
 import { Link } from 'expo-router';
 import React from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { Character } from '@/components/character';
 import { DailyStatsComponent } from '@/components/daily-stats';
@@ -11,22 +11,13 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { useLanguageKey, useTranslations } from '@/hooks/use-translations';
 
 export default function ProgressScreen() {
-  const { character, dailyStats, loading } = useHabits();
+  const { character, dailyStats } = useHabits(); // Видалили loading
   const t = useTranslations();
   const backgroundColor = useThemeColor({}, 'background');
   const primaryColor = useThemeColor({}, 'primary');
   const cardBackground = useThemeColor({}, 'cardBackground');
   const borderColor = useThemeColor({}, 'border');
   const languageKey = useLanguageKey();
-
-  if (loading) {
-    return (
-      <ThemedView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={primaryColor} />
-        <ThemedText style={styles.loadingText}>Loading...</ThemedText>
-      </ThemedView>
-    );
-  }
 
   return (
     <ScrollView key={languageKey} style={[styles.container, { backgroundColor }]}>
@@ -81,15 +72,6 @@ export default function ProgressScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
   },
   content: {
     flex: 1,
