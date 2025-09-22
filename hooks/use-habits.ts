@@ -2,7 +2,9 @@ import { CharacterState, DailyStats, Habit } from '@/types/habit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect } from 'react';
 import { useAchievements } from './use-achievements';
+import { useBonuses } from './use-bonuses';
 import { createGlobalState } from './use-global-state';
+import { useStatistics } from './use-statistics';
 
 const HABITS_KEY = '@riseup_habits';
 const CHARACTER_KEY = '@riseup_character';
@@ -13,28 +15,28 @@ const defaultHabits: Habit[] = [
   {
     id: '1',
     name: 'Пити воду',
-    icon: '💧',
+    icon: require('../assets/images/water.png'),
     completed: false,
     streak: 0,
   },
   {
     id: '2',
     name: 'Тренування',
-    icon: '💪',
+    icon: require('../assets/images/strong.png'),
     completed: false,
     streak: 0,
   },
   {
     id: '3',
     name: 'Медитація',
-    icon: '🧘',
+    icon: require('../assets/images/meditation.png'),
     completed: false,
     streak: 0,
   },
   {
     id: '4',
     name: 'Читання',
-    icon: '📚',
+    icon: require('../assets/images/book.png'),
     completed: false,
     streak: 0,
   },
@@ -69,6 +71,8 @@ const useGlobalHabitsState = createGlobalState(defaultHabitsState);
 export function useHabits() {
   const [state, setState] = useGlobalHabitsState();
   const { checkAchievements } = useAchievements();
+  const { checkBonuses } = useBonuses();
+  const { updateDailyRecord } = useStatistics();
 
   // Завантажуємо дані тільки один раз при ініціалізації
   useEffect(() => {
@@ -244,6 +248,21 @@ export function useHabits() {
             level: prevState.character.level,
             currentTime: new Date(),
           });
+          
+          // Check bonuses
+          checkBonuses({
+            totalCompletions: newTotalCompletions,
+            perfectDays,
+            currentStreak: Math.max(...Object.values(streaks)),
+            completedToday,
+            currentTime: new Date(),
+          });
+          
+          // Update statistics
+          updateDailyRecord(
+            updatedHabits.filter(h => h.completed).map(h => h.id),
+            updatedHabits.length
+          );
         })
         .catch(error => console.error('❌ Error saving habits:', error));
 
@@ -253,7 +272,7 @@ export function useHabits() {
         totalCompletions: newTotalCompletions,
       };
     });
-  }, [setState, updateCharacterProgress, updateDailyStats, checkAchievements]);
+  }, [setState, updateCharacterProgress, updateDailyStats, checkAchievements, checkBonuses, updateDailyRecord]);
 
   const resetDailyHabits = useCallback(async () => {
     setState(prevState => {

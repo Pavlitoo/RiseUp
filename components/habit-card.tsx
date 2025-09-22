@@ -3,6 +3,7 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { useTranslations } from '@/hooks/use-translations';
 import { Habit } from '@/types/habit';
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
 import React from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import Animated, {
@@ -91,11 +92,15 @@ export function HabitCard({ habit, onToggle }: HabitCardProps) {
       >
         <View style={styles.content}>
           <View style={styles.leftContent}>
-            <Animated.Text style={[styles.icon, {
+            <Animated.View style={[styles.iconContainer, {
               transform: [{ scale: habit.completed ? 1.1 : 1 }]
             }]}>
-              {habit.icon}
-            </Animated.Text>
+              <Image 
+                source={habit.icon} 
+                style={styles.icon}
+                contentFit="contain"
+              />
+            </Animated.View>
             <View style={styles.textContent}>
               <ThemedText type="defaultSemiBold" style={styles.habitName}>
                 {habit.name}
@@ -149,9 +154,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
-  icon: {
-    fontSize: 32,
+  iconContainer: {
+    width: 40,
+    height: 40,
     marginRight: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  icon: {
+    width: 32,
+    height: 32,
+  },
+  iconText: {
+    fontSize: 32,
   },
   textContent: {
     flex: 1,

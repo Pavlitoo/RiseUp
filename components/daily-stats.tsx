@@ -1,8 +1,10 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useStatistics } from '@/hooks/use-statistics';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useTranslations } from '@/hooks/use-translations';
 import { DailyStats } from '@/types/habit';
+import { Image } from 'expo-image';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -12,6 +14,7 @@ interface DailyStatsProps {
 
 export function DailyStatsComponent({ stats }: DailyStatsProps) {
   const t = useTranslations();
+  const { statistics } = useStatistics();
   const cardBackground = useThemeColor({}, 'cardBackground');
   const borderColor = useThemeColor({}, 'border');
   const primaryColor = useThemeColor({}, 'primary');
@@ -24,7 +27,7 @@ export function DailyStatsComponent({ stats }: DailyStatsProps) {
           📊 {t.dailyStats}
         </ThemedText>
         <ThemedText style={styles.noData}>
-          Start completing habits to see statistics!
+          Почни виконувати звички, щоб побачити статистику!
         </ThemedText>
       </ThemedView>
     );
@@ -35,11 +38,12 @@ export function DailyStatsComponent({ stats }: DailyStatsProps) {
   return (
     <ThemedView style={[styles.container, { backgroundColor: cardBackground, borderColor }]}>
       <ThemedText type="subtitle" style={styles.title}>
-        📊 {t.dailyStats}
+        <Image source={require('@/assets/images/statistics.png')} style={styles.titleIcon} /> {t.dailyStats}
       </ThemedText>
       
       <View style={styles.statsGrid}>
         <View style={styles.statItem}>
+          <ThemedText style={[styles.statNumber, { color: primaryColor }]}>✅</ThemedText>
           <ThemedText style={[styles.statNumber, { color: primaryColor }]}>
             {stats.completedHabits}
           </ThemedText>
@@ -47,6 +51,7 @@ export function DailyStatsComponent({ stats }: DailyStatsProps) {
         </View>
         
         <View style={styles.statItem}>
+          <ThemedText style={[styles.statNumber, { color: secondaryColor }]}>🎯</ThemedText>
           <ThemedText style={[styles.statNumber, { color: secondaryColor }]}>
             {stats.totalHabits}
           </ThemedText>
@@ -54,6 +59,7 @@ export function DailyStatsComponent({ stats }: DailyStatsProps) {
         </View>
         
         <View style={styles.statItem}>
+          <ThemedText style={[styles.statNumber, { color: primaryColor }]}>📊</ThemedText>
           <ThemedText style={[styles.statNumber, { color: primaryColor }]}>
             {Math.round(completionRate)}%
           </ThemedText>
@@ -61,6 +67,7 @@ export function DailyStatsComponent({ stats }: DailyStatsProps) {
         </View>
         
         <View style={styles.statItem}>
+          <ThemedText style={[styles.statNumber, { color: secondaryColor }]}>⭐</ThemedText>
           <ThemedText style={[styles.statNumber, { color: secondaryColor }]}>
             +{stats.experienceGained}
           </ThemedText>
@@ -89,6 +96,14 @@ const styles = StyleSheet.create({
   title: {
     textAlign: 'center',
     marginBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  titleIcon: {
+    width: 20,
+    height: 20,
+    marginRight: 8,
   },
   noData: {
     textAlign: 'center',
@@ -104,6 +119,11 @@ const styles = StyleSheet.create({
   statItem: {
     alignItems: 'center',
     minWidth: 70,
+  },
+  statIcon: {
+    width: 16,
+    height: 16,
+    marginBottom: 4,
   },
   statNumber: {
     fontSize: 24,

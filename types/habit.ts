@@ -1,7 +1,7 @@
 export interface Habit {
   id: string;
   name: string;
-  icon: string;
+  icon: any; // Changed to support require() for images
   completed: boolean;
   streak: number;
   lastCompleted?: string;

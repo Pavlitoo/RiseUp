@@ -1,8 +1,11 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useBonuses } from '@/hooks/use-bonuses';
 import { useHabits } from '@/hooks/use-habits';
+import { useStatistics } from '@/hooks/use-statistics';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useTranslations } from '@/hooks/use-translations';
+import { Image } from 'expo-image';
 import React from 'react';
 import { Dimensions, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -14,6 +17,8 @@ const chartHeight = 200;
 
 export function StatisticsScreen() {
   const { habits, character } = useHabits();
+  const { statistics, getDailyDataForChart } = useStatistics();
+  const { getUnclaimedCount } = useBonuses();
   const t = useTranslations();
   const backgroundColor = useThemeColor({}, 'background');
   const cardBackground = useThemeColor({}, 'cardBackground');
@@ -21,27 +26,25 @@ export function StatisticsScreen() {
   const primaryColor = useThemeColor({}, 'primary');
   const secondaryColor = useThemeColor({}, 'secondary');
 
-  // Calculate statistics
-  const totalHabits = habits.length;
+  // Get real statistics
   const completedToday = habits.filter(h => h.completed).length;
+  const totalHabits = habits.length;
   const completionRate = totalHabits > 0 ? (completedToday / totalHabits) * 100 : 0;
-  const totalStreak = habits.reduce((sum, habit) => sum + habit.streak, 0);
-  const averageStreak = totalHabits > 0 ? totalStreak / totalHabits : 0;
-  const longestStreak = Math.max(...habits.map(h => h.streak), 0);
+  const unclaimedBonuses = getUnclaimedCount();
 
-  // Generate mock weekly data for chart
-  const weeklyData = Array.from({ length: 7 }, (_, i) => ({
-    day: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'][i],
-    completed: Math.floor(Math.random() * totalHabits) + (i === 6 ? completedToday : 0),
-    total: totalHabits,
-  }));
+  // Get real weekly data for chart
+  const weeklyData = getDailyDataForChart(7);
 
   const StatCard = ({ title, value, icon, color, subtitle }: any) => (
     <Animated.View
       entering={FadeIn.duration(600)}
       style={[styles.statCard, { backgroundColor: cardBackground, borderColor }]}
     >
-      <ThemedText style={[styles.statIcon, { color }]}>{icon}</ThemedText>
+      {typeof icon === 'string' ? (
+        <ThemedText style={[styles.statIcon, { color }]}>{icon}</ThemedText>
+      ) : (
+        <Image source={icon} style={[styles.statIconImage, { tintColor: color }]} />
+      )}
       <ThemedText type="defaultSemiBold" style={styles.statValue}>
         {value}
       </ThemedText>
@@ -140,7 +143,7 @@ export function StatisticsScreen() {
           <StatCard
             title="Сьогодні"
             value={`${completedToday}/${totalHabits}`}
-            icon="✅"
+            icon={require('@/assets/images/complete.png')}
             color={primaryColor}
             subtitle={`${Math.round(completionRate)}%`}
           />
@@ -148,24 +151,40 @@ export function StatisticsScreen() {
           <StatCard
             title="Рівень"
             value={character.level}
-            icon="🎯"
+            icon={require('@/assets/images/target.png')}
             color={secondaryColor}
           />
           
           <StatCard
             title="Найдовша серія"
-            value={longestStreak}
-            icon="🔥"
+            value={statistics.bestStreak}
+            icon={require('@/assets/images/fire.png')}
             color="#f59e0b"
             subtitle="днів"
           />
           
           <StatCard
-            title="Середня серія"
-            value={Math.round(averageStreak)}
-            icon="📊"
+            title="Всього днів"
+            value={statistics.totalDays}
+            icon={require('@/assets/images/statistics.png')}
             color="#8b5cf6"
             subtitle="днів"
+          />
+          
+          <StatCard
+            title="Досвід"
+            value={statistics.totalExperience}
+            icon="⭐"
+            color="#f59e0b"
+            subtitle="XP"
+          />
+          
+          <StatCard
+            title="Бонуси"
+            value={unclaimedBonuses}
+            icon="🎁"
+            color="#ef4444"
+            subtitle="доступно"
           />
         </View>
 
@@ -176,7 +195,7 @@ export function StatisticsScreen() {
           style={[styles.habitsBreakdown, { backgroundColor: cardBackground, borderColor }]}
         >
           <ThemedText type="subtitle" style={styles.breakdownTitle}>
-            🎯 Розбивка по звичках
+            <Image source={require('@/assets/images/target.png')} style={styles.titleIcon} /> Розбивка по звичках
           </ThemedText>
           
           {habits.map((habit, index) => (
@@ -186,7 +205,9 @@ export function StatisticsScreen() {
               style={styles.habitRow}
             >
               <View style={styles.habitInfo}>
-                <ThemedText style={styles.habitIcon}>{habit.icon}</ThemedText>
+                <ThemedText style={styles.habitIcon}>
+                  {habit.id === '1' ? '💧' : habit.id === '2' ? '💪' : habit.id === '3' ? '🧘' : '📚'}
+                </ThemedText>
                 <View style={styles.habitDetails}>
                   <ThemedText type="defaultSemiBold" style={styles.habitName}>
                     {habit.name}
@@ -260,6 +281,11 @@ const styles = StyleSheet.create({
     fontSize: 24,
     marginBottom: 8,
   },
+  statIconImage: {
+    width: 24,
+    height: 24,
+    marginBottom: 8,
+  },
   statValue: {
     fontSize: 24,
     marginBottom: 4,
@@ -291,6 +317,14 @@ const styles = StyleSheet.create({
   chartTitle: {
     textAlign: 'center',
     marginBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  titleIcon: {
+    width: 20,
+    height: 20,
+    marginRight: 8,
   },
   chart: {
     alignSelf: 'center',
@@ -312,6 +346,9 @@ const styles = StyleSheet.create({
   breakdownTitle: {
     textAlign: 'center',
     marginBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   habitRow: {
     flexDirection: 'row',
@@ -327,7 +364,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   habitIcon: {
-    fontSize: 24,
+    width: 24,
+    height: 24,
     marginRight: 12,
   },
   habitDetails: {
