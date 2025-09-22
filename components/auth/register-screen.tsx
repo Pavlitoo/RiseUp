@@ -118,11 +118,21 @@ export function RegisterScreen({ onSwitchToLogin }: RegisterScreenProps) {
     }
 
     setLoading(true);
-    const success = await register(email.trim(), password, name.trim());
-    setLoading(false);
-
-    if (!success) {
-      Alert.alert('Error', t.registerFailed);
+    
+    try {
+      const success = await register(email.trim(), password, name.trim());
+      
+      if (success) {
+        // Registration successful - state will update automatically
+        console.log('✅ Registration successful');
+      } else {
+        Alert.alert('Помилка', 'Користувач з таким email вже існує');
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      Alert.alert('Помилка', 'Сталася помилка при реєстрації');
+    } finally {
+      setLoading(false);
     }
   };
 

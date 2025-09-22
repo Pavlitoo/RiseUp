@@ -4,7 +4,8 @@ import { InputField } from '@/components/ui/input-field';
 import { validateName } from '@/constants/validation';
 import { useAuth } from '@/hooks/use-auth';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { useTranslations } from '@/hooks/use-translations';
+import { useLanguageKey, useTranslations } from '@/hooks/use-translations';
+import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
 import { Alert, Image, ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
@@ -12,6 +13,7 @@ import { Alert, Image, ScrollView, StyleSheet, Switch, TouchableOpacity, View } 
 export function ProfileScreen() {
   const { authState, logout, updateProfile, updateSettings } = useAuth();
   const t = useTranslations();
+  const languageKey = useLanguageKey();
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(authState.user?.name || '');
   const [nameError, setNameError] = useState<string | undefined>();
@@ -70,17 +72,35 @@ export function ProfileScreen() {
   };
 
   const handleMusicToggle = (value: boolean) => {
-    updateSettings({ musicEnabled: value });
+    // Haptic feedback
+    if (process.env.EXPO_OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    
+    // Show immediate feedback
+    console.log(`🎵 Music ${value ? 'enabled' : 'disabled'}`);
+    
+    updateSettings({ musicEnabled: value }).then((success) => {
+      if (success) {
+        console.log('Music setting updated successfully');
+      }
+    });
   };
 
   const handleLanguageChange = (language: 'uk' | 'en') => {
+    // Haptic feedback
+    if (process.env.EXPO_OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    
+    // Update language immediately
     updateSettings({ language });
   };
 
   if (!authState.user) return null;
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor }]}>
+    <ScrollView key={languageKey} style={[styles.container, { backgroundColor }]}>
       <ThemedView style={styles.content}>
         <View style={styles.header}>
           <ThemedText type="title" style={styles.title}>

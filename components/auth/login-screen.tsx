@@ -5,8 +5,15 @@ import { validateEmail, validatePassword } from '@/constants/validation';
 import { useAuth } from '@/hooks/use-auth';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useTranslations } from '@/hooks/use-translations';
+import * as Haptics from 'expo-haptics';
 import React, { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming
+} from 'react-native-reanimated';
 
 interface LoginScreenProps {
   onSwitchToRegister: () => void;
@@ -33,6 +40,29 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
   const primaryColor = useThemeColor({}, 'primary');
   const textColor = useThemeColor({}, 'text');
 
+  const buttonScale = useSharedValue(1);
+  const formOpacity = useSharedValue(0);
+
+  React.useEffect(() => {
+    formOpacity.value = withTiming(1, { duration: 800 });
+  }, []);
+
+  const animatedButtonStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: buttonScale.value }],
+    };
+  });
+
+  const animatedFormStyle = useAnimatedStyle(() => {
+    return {
+      opacity: formOpacity.value,
+      transform: [
+        {
+          translateY: (1 - formOpacity.value) * 50,
+        },
+      ],
+    };
+  });
   const validateField = (field: string, value: string) => {
     let validation;
     switch (field) {
@@ -73,6 +103,16 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
   };
 
   const handleLogin = async () => {
+    // Haptic feedback
+    if (process.env.EXPO_OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    // Button animation
+    buttonScale.value = withSpring(0.95, { duration: 100 }, () => {
+      buttonScale.value = withSpring(1, { duration: 200 });
+    });
+
     // Validate all fields
     const emailValidation = validateEmail(email);
     const passwordValidation = validatePassword(password);
@@ -92,25 +132,44 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
     }
 
     setLoading(true);
-    const success = await login(email.trim(), password);
-    setLoading(false);
-
-    if (!success) {
-      Alert.alert('Error', t.loginFailed);
+    
+    try {
+      const success = await login(email.trim(), password);
+      
+      if (success) {
+        // Login successful - state will update automatically
+        console.log('✅ Login successful');
+      } else {
+        Alert.alert('Помилка', 'Невірний email або пароль');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      Alert.alert('Помилка', 'Сталася помилка при вході');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <ScrollView style={[styles.container, { backgroundColor }]} keyboardShouldPersistTaps="handled">
       <ThemedView style={styles.content}>
-        <ThemedText type="title" style={styles.title}>
+        <Animated.Text style={[styles.title, { 
+          fontSize: 32, 
+          fontWeight: 'bold',
+          textAlign: 'center',
+          marginBottom: 8,
+        }]}>
           🌟 RiseUp
-        </ThemedText>
+        </Animated.Text>
         <ThemedText style={styles.subtitle}>
           {t.login}
         </ThemedText>
 
-        <ThemedView style={[styles.form, { backgroundColor: cardBackground, borderColor }]}>
+        <Animated.View style={[
+          styles.form, 
+          { backgroundColor: cardBackground, borderColor },
+          animatedFormStyle,
+        ]}>
           <InputField
             label={t.email}
             value={email}
@@ -139,13 +198,19 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
           />
 
           <TouchableOpacity
-            style={[styles.button, { backgroundColor: primaryColor }]}
             onPress={handleLogin}
             disabled={loading}
+            activeOpacity={1}
           >
-            <ThemedText style={[styles.buttonText, { color: 'white' }]}>
-              {loading ? '...' : t.loginButton}
-            </ThemedText>
+            <Animated.View style={[
+              styles.button, 
+              { backgroundColor: primaryColor },
+              animatedButtonStyle,
+            ]}>
+              <ThemedText style={[styles.buttonText, { color: 'white' }]}>
+                {loading ? '⏳ Завантаження...' : `🚀 ${t.loginButton}`}
+              </ThemedText>
+            </Animated.View>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={onSwitchToRegister} style={styles.switchButton}>
@@ -153,7 +218,7 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
               {t.dontHaveAccount} {t.register}
             </ThemedText>
           </TouchableOpacity>
-        </ThemedView>
+        </Animated.View>
       </ThemedView>
     </ScrollView>
   );

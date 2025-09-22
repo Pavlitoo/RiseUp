@@ -133,6 +133,12 @@ export function useAuth() {
     try {
       const updatedUser = { ...authState.user, ...updates };
       
+      // Immediately update state for instant UI feedback
+      setAuthState(prev => ({
+        ...prev,
+        user: updatedUser,
+      }));
+
       // Update in users storage
       const usersData = await AsyncStorage.getItem('@riseup_users');
       const users = usersData ? JSON.parse(usersData) : [];
@@ -143,17 +149,38 @@ export function useAuth() {
         await AsyncStorage.setItem('@riseup_users', JSON.stringify(users));
       }
 
-      await saveAuthState(updatedUser);
+      // Save to auth storage
+      await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(updatedUser));
       return true;
     } catch (error) {
       console.error('Update profile error:', error);
+      // Revert state on error
+      setAuthState(prev => ({
+        ...prev,
+        user: authState.user,
+      }));
       return false;
     }
   };
 
   const updateSettings = async (updates: Partial<UserSettings>) => {
     const newSettings = { ...authState.settings, ...updates };
-    await saveSettings(newSettings);
+    
+    try {
+      // Save to storage first
+      await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(newSettings));
+      
+      // Then update state - this will trigger re-renders
+      setAuthState(prev => ({
+        ...prev,
+        settings: newSettings,
+      }));
+      
+      return true;
+    } catch (error) {
+      console.error('Error updating settings:', error);
+      return false;
+    }
   };
 
   return {

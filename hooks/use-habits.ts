@@ -124,6 +124,10 @@ export function useHabits() {
       return habit;
     });
 
+    // Immediately update state for instant UI feedback
+    setHabits(updatedHabits);
+
+    // Save to storage and update character in background
     await saveHabits(updatedHabits);
     await updateCharacterProgress(updatedHabits);
     await updateDailyStats(updatedHabits);

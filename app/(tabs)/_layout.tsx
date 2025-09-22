@@ -5,14 +5,16 @@ import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useTranslations } from '@/hooks/use-translations';
+import { useLanguageKey, useTranslations } from '@/hooks/use-translations';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const t = useTranslations();
+  const languageKey = useLanguageKey();
 
   return (
     <Tabs
+      key={languageKey}
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
@@ -29,7 +31,7 @@ export default function TabLayout() {
         name="progress"
         options={{
           title: t.progress,
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.fill" color={color} />,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="chevron.right" color={color} />,
         }}
       />
       <Tabs.Screen

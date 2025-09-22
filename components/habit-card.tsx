@@ -2,8 +2,16 @@ import { ThemedText } from '@/components/themed-text';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useTranslations } from '@/hooks/use-translations';
 import { Habit } from '@/types/habit';
+import * as Haptics from 'expo-haptics';
 import React from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import Animated, {
+  interpolateColor,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring
+} from 'react-native-reanimated';
 
 interface HabitCardProps {
   habit: Habit;
@@ -15,47 +23,108 @@ export function HabitCard({ habit, onToggle }: HabitCardProps) {
   const cardBackground = useThemeColor({}, 'cardBackground');
   const borderColor = useThemeColor({}, 'border');
   const primaryColor = useThemeColor({}, 'primary');
+  
+  const scale = useSharedValue(1);
+  const checkboxScale = useSharedValue(habit.completed ? 1 : 0);
+  const opacity = useSharedValue(1);
+
+  const animatedCardStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: scale.value }],
+      opacity: opacity.value,
+      backgroundColor: interpolateColor(
+        checkboxScale.value,
+        [0, 1],
+        [cardBackground, cardBackground]
+      ),
+    };
+  });
+
+  const animatedCheckboxStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: checkboxScale.value }],
+      backgroundColor: interpolateColor(
+        checkboxScale.value,
+        [0, 1],
+        ['transparent', primaryColor]
+      ),
+    };
+  });
+
+  const handlePress = () => {
+    // Haptic feedback
+    if (process.env.EXPO_OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    // Animation
+    scale.value = withSpring(0.95, { duration: 100 }, () => {
+      scale.value = withSpring(1, { duration: 200 });
+    });
+
+    // Toggle checkbox animation
+    checkboxScale.value = withSpring(habit.completed ? 0 : 1, {
+      damping: 15,
+      stiffness: 200,
+    });
+
+    // Call the toggle function
+    runOnJS(onToggle)(habit.id);
+  };
+  React.useEffect(() => {
+    checkboxScale.value = withSpring(habit.completed ? 1 : 0, {
+      damping: 15,
+      stiffness: 200,
+    });
+  }, [habit.completed]);
 
   return (
     <TouchableOpacity
-      style={[
-        styles.card,
-        { 
-          backgroundColor: cardBackground,
-          borderWidth: habit.completed ? 2 : 1,
-          borderColor: habit.completed ? primaryColor : borderColor,
-        }
-      ]}
-      onPress={() => onToggle(habit.id)}
-      activeOpacity={0.7}
+      onPress={handlePress}
+      activeOpacity={1}
     >
-      <View style={styles.content}>
-        <View style={styles.leftContent}>
-          <ThemedText style={styles.icon}>{habit.icon}</ThemedText>
-          <View style={styles.textContent}>
-            <ThemedText type="defaultSemiBold" style={styles.habitName}>
-              {habit.name}
-            </ThemedText>
-            <ThemedText style={styles.streak}>
-              {t.streak}: {habit.streak} {t.days}
-            </ThemedText>
-          </View>
-        </View>
-        
-        <View style={[
-          styles.checkbox,
+      <Animated.View
+        style={[
+          styles.card,
           { 
-            backgroundColor: habit.completed ? primaryColor : 'transparent',
+            borderWidth: habit.completed ? 2 : 1,
             borderColor: habit.completed ? primaryColor : borderColor,
-          }
-        ]}>
-          {habit.completed && (
-            <ThemedText style={[styles.checkmark, { color: 'white' }]}>
-              ✓
-            </ThemedText>
-          )}
+          },
+          animatedCardStyle,
+        ]}
+      >
+        <View style={styles.content}>
+          <View style={styles.leftContent}>
+            <Animated.Text style={[styles.icon, {
+              transform: [{ scale: habit.completed ? 1.1 : 1 }]
+            }]}>
+              {habit.icon}
+            </Animated.Text>
+            <View style={styles.textContent}>
+              <ThemedText type="defaultSemiBold" style={styles.habitName}>
+                {habit.name}
+              </ThemedText>
+              <ThemedText style={styles.streak}>
+                {t.streak}: {habit.streak} {t.days}
+              </ThemedText>
+            </View>
+          </View>
+          
+          <Animated.View style={[
+            styles.checkbox,
+            { 
+              borderColor: habit.completed ? primaryColor : borderColor,
+            },
+            animatedCheckboxStyle,
+          ]}>
+            {habit.completed && (
+              <Animated.Text style={[styles.checkmark, { color: 'white' }]}>
+                ✓
+              </Animated.Text>
+            )}
+          </Animated.View>
         </View>
-      </View>
+      </Animated.View>
     </TouchableOpacity>
   );
 }

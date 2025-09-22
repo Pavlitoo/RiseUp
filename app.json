@@ -2,22 +2,33 @@
   "expo": {
     "name": "RiseUp",
     "slug": "RiseUp",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "riseup",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "description": "Додаток для формування корисних звичок з елементами геймифікації",
+    "keywords": ["habits", "productivity", "gamification", "health", "lifestyle"],
+    "privacy": "public",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.riseup.habits",
+      "buildNumber": "2"
     },
     "android": {
+      "package": "com.riseup.habits",
+      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },

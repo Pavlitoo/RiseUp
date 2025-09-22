@@ -8,7 +8,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useHabits } from '@/hooks/use-habits';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { useTranslations } from '@/hooks/use-translations';
+import { useLanguageKey, useTranslations } from '@/hooks/use-translations';
 
 export default function ProgressScreen() {
   const { character, dailyStats, loading } = useHabits();
@@ -17,6 +17,7 @@ export default function ProgressScreen() {
   const primaryColor = useThemeColor({}, 'primary');
   const cardBackground = useThemeColor({}, 'cardBackground');
   const borderColor = useThemeColor({}, 'border');
+  const languageKey = useLanguageKey();
 
   if (loading) {
     return (
@@ -28,7 +29,7 @@ export default function ProgressScreen() {
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor }]}>
+    <ScrollView key={languageKey} style={[styles.container, { backgroundColor }]}>
       <ThemedView style={styles.content}>
         <View style={styles.header}>
           <ThemedText type="title" style={styles.title}>

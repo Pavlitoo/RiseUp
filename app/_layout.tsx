@@ -11,6 +11,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFrameworkReady } from '@/hooks/use-framework-ready';
 import { useMusic } from '@/hooks/use-music';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { useLanguageKey } from '@/hooks/use-translations';
 import { ActivityIndicator, View } from 'react-native';
 
 export const unstable_settings = {
@@ -22,6 +23,7 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   const { authState, loading } = useAuth();
   const primaryColor = useThemeColor({}, 'primary');
+  const languageKey = useLanguageKey();
   
   // Initialize music
   useMusic();
@@ -47,7 +49,7 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider key={languageKey} value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />

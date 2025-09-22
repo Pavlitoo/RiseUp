@@ -1,6 +1,6 @@
 import { Link } from 'expo-router';
 import React from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet } from 'react-native';
 
 import { DailyStatsComponent } from '@/components/daily-stats';
 import { HabitCard } from '@/components/habit-card';
@@ -8,14 +8,40 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useHabits } from '@/hooks/use-habits';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { useTranslations } from '@/hooks/use-translations';
+import { useLanguageKey, useTranslations } from '@/hooks/use-translations';
+import Animated, {
+  FadeIn,
+  SlideInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming
+} from 'react-native-reanimated';
 
 export default function HomeScreen() {
   const { habits, dailyStats, loading, toggleHabit } = useHabits();
   const t = useTranslations();
   const backgroundColor = useThemeColor({}, 'background');
   const primaryColor = useThemeColor({}, 'primary');
+  const languageKey = useLanguageKey();
 
+  const headerOpacity = useSharedValue(0);
+
+  React.useEffect(() => {
+    if (!loading) {
+      headerOpacity.value = withTiming(1, { duration: 1000 });
+    }
+  }, [loading]);
+
+  const animatedHeaderStyle = useAnimatedStyle(() => {
+    return {
+      opacity: headerOpacity.value,
+      transform: [
+        {
+          translateY: (1 - headerOpacity.value) * -20,
+        },
+      ],
+    };
+  });
   if (loading) {
     return (
       <ThemedView style={styles.loadingContainer}>
@@ -26,40 +52,51 @@ export default function HomeScreen() {
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor }]}>
+    <ScrollView key={languageKey} style={[styles.container, { backgroundColor }]}>
       <ThemedView style={styles.content}>
-        <View style={styles.header}>
+        <Animated.View style={[styles.header, animatedHeaderStyle]}>
           <ThemedText type="title" style={styles.title}>
             🌟 RiseUp
           </ThemedText>
           <ThemedText style={styles.subtitle}>
             {t.myHabits}
           </ThemedText>
-        </View>
+        </Animated.View>
 
-        <DailyStatsComponent stats={dailyStats} />
+        <Animated.View entering={FadeIn.delay(200).duration(800)}>
+          <DailyStatsComponent stats={dailyStats} />
+        </Animated.View>
 
-        <View style={styles.habitsSection}>
+        <Animated.View 
+          style={styles.habitsSection}
+          entering={SlideInDown.delay(400).duration(800)}
+        >
           <ThemedText type="subtitle" style={styles.sectionTitle}>
             {t.myHabits}
           </ThemedText>
           
-          {habits.map((habit) => (
-            <HabitCard
+          {habits.map((habit, index) => (
+            <Animated.View
               key={habit.id}
-              habit={habit}
-              onToggle={toggleHabit}
-            />
+              entering={FadeIn.delay(600 + index * 100).duration(600)}
+            >
+              <HabitCard
+                habit={habit}
+                onToggle={toggleHabit}
+              />
+            </Animated.View>
           ))}
-        </View>
+        </Animated.View>
 
-        <Link href="/progress" style={styles.progressButton}>
-          <ThemedView style={[styles.button, { backgroundColor: primaryColor }]}>
-            <ThemedText style={[styles.buttonText, { color: 'white' }]}>
-              {t.viewProgress}
-            </ThemedText>
-          </ThemedView>
-        </Link>
+        <Animated.View entering={FadeIn.delay(800).duration(600)}>
+          <Link href="/progress" style={styles.progressButton}>
+            <ThemedView style={[styles.button, { backgroundColor: primaryColor }]}>
+              <ThemedText style={[styles.buttonText, { color: 'white' }]}>
+                {t.viewProgress}
+              </ThemedText>
+            </ThemedView>
+          </Link>
+        </Animated.View>
       </ThemedView>
     </ScrollView>
   );

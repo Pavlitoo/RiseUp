@@ -5,6 +5,13 @@ import { useTranslations } from '@/hooks/use-translations';
 import { CharacterState } from '@/types/habit';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
+import Animated, {
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming
+} from 'react-native-reanimated';
 
 interface CharacterProps {
   character: CharacterState;
@@ -17,6 +24,55 @@ export function Character({ character }: CharacterProps) {
   const warningColor = useThemeColor({}, 'warning');
   const errorColor = useThemeColor({}, 'error');
 
+  const bounceAnimation = useSharedValue(0);
+  const pulseAnimation = useSharedValue(0);
+
+  React.useEffect(() => {
+    // Character bounce animation
+    bounceAnimation.value = withRepeat(
+      withTiming(1, { duration: 2000 }),
+      -1,
+      true
+    );
+
+    // Health bar pulse animation when low health
+    if (character.health / character.maxHealth < 0.3) {
+      pulseAnimation.value = withRepeat(
+        withTiming(1, { duration: 800 }),
+        -1,
+        true
+      );
+    }
+  }, [character.health, character.maxHealth]);
+
+  const animatedCharacterStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        {
+          translateY: interpolate(
+            bounceAnimation.value,
+            [0, 1],
+            [0, -10]
+          ),
+        },
+        {
+          scale: interpolate(
+            bounceAnimation.value,
+            [0, 0.5, 1],
+            [1, 1.05, 1]
+          ),
+        },
+      ],
+    };
+  });
+
+  const animatedHealthBarStyle = useAnimatedStyle(() => {
+    const healthPercentage = character.health / character.maxHealth;
+    return {
+      opacity: healthPercentage < 0.3 ? 
+        interpolate(pulseAnimation.value, [0, 1], [0.6, 1]) : 1,
+    };
+  });
   const getCharacterEmoji = () => {
     switch (character.state) {
       case 'strong':
@@ -48,14 +104,14 @@ export function Character({ character }: CharacterProps) {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={styles.characterDisplay}>
-        <ThemedText style={styles.characterEmoji}>
+      <Animated.View style={[styles.characterDisplay, animatedCharacterStyle]}>
+        <Animated.Text style={styles.characterEmoji}>
           {getCharacterEmoji()}
-        </ThemedText>
+        </Animated.Text>
         <ThemedText type="subtitle" style={styles.stateText}>
           {getStateText()}
         </ThemedText>
-      </View>
+      </Animated.View>
 
       <View style={styles.statsContainer}>
         <View style={styles.statRow}>
@@ -65,17 +121,18 @@ export function Character({ character }: CharacterProps) {
         <View style={styles.statRow}>
           <ThemedText style={styles.statLabel}>{t.health}</ThemedText>
           <View style={styles.progressBarContainer}>
-            <View style={[styles.progressBar, { backgroundColor: '#e5e7eb' }]}>
-              <View
+            <Animated.View style={[styles.progressBar, { backgroundColor: '#e5e7eb' }]}>
+              <Animated.View
                 style={[
                   styles.progressFill,
                   {
                     width: `${(character.health / character.maxHealth) * 100}%`,
                     backgroundColor: getHealthBarColor(),
                   },
+                  animatedHealthBarStyle,
                 ]}
               />
-            </View>
+            </Animated.View>
             <ThemedText style={styles.statValue}>
               {character.health}/{character.maxHealth}
             </ThemedText>
@@ -86,7 +143,7 @@ export function Character({ character }: CharacterProps) {
           <ThemedText style={styles.statLabel}>{t.experience}</ThemedText>
           <View style={styles.progressBarContainer}>
             <View style={[styles.progressBar, { backgroundColor: '#e5e7eb' }]}>
-              <View
+              <Animated.View
                 style={[
                   styles.progressFill,
                   {
