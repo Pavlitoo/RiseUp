@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect } from 'react';
 import { useAchievements } from './use-achievements';
 import { useBonuses } from './use-bonuses';
+import { useCustomHabits } from './use-custom-habits';
 import { createGlobalState } from './use-global-state';
 import { useStatistics } from './use-statistics';
 
@@ -72,6 +73,7 @@ export function useHabits() {
   const [state, setState] = useGlobalHabitsState();
   const { checkAchievements } = useAchievements();
   const { checkBonuses } = useBonuses();
+  const { habits: customHabits, getTotalProgress: getCustomProgress } = useCustomHabits();
   const { updateDailyRecord } = useStatistics();
 
   // Завантажуємо дані тільки один раз при ініціалізації
@@ -121,8 +123,10 @@ export function useHabits() {
   }, []);
 
   const updateCharacterProgress = useCallback((currentHabits: Habit[]) => {
-    const completedCount = currentHabits.filter(h => h.completed).length;
-    const totalCount = currentHabits.length;
+    // Include both default and custom habits in character progress
+    const customCompletedCount = customHabits.filter(h => h.completed).length;
+    const completedCount = currentHabits.filter(h => h.completed).length + customCompletedCount;
+    const totalCount = currentHabits.length + customHabits.length;
     const completionRate = completedCount / totalCount;
 
     setState(prevState => {
@@ -162,12 +166,14 @@ export function useHabits() {
         character: newCharacter,
       };
     });
-  }, [setState]);
+  }, [setState, customHabits]);
 
   const updateDailyStats = useCallback((currentHabits: Habit[]) => {
     const today = new Date().toDateString();
-    const completedCount = currentHabits.filter(h => h.completed).length;
-    const totalCount = currentHabits.length;
+    // Include both default and custom habits in daily stats
+    const customCompletedCount = customHabits.filter(h => h.completed).length;
+    const completedCount = currentHabits.filter(h => h.completed).length + customCompletedCount;
+    const totalCount = currentHabits.length + customHabits.length;
 
     const stats: DailyStats = {
       date: today,
@@ -185,7 +191,7 @@ export function useHabits() {
     AsyncStorage.setItem(STATS_KEY, JSON.stringify(stats))
       .then(() => console.log('✅ Stats saved to storage'))
       .catch(error => console.error('❌ Error saving stats:', error));
-  }, [setState]);
+  }, [setState, customHabits]);
 
   const toggleHabit = useCallback(async (habitId: string) => {
     console.log('🔄 Toggling habit:', habitId);
@@ -272,7 +278,7 @@ export function useHabits() {
         totalCompletions: newTotalCompletions,
       };
     });
-  }, [setState, updateCharacterProgress, updateDailyStats, checkAchievements, checkBonuses, updateDailyRecord]);
+  }, [setState, updateCharacterProgress, updateDailyStats, checkAchievements, checkBonuses, updateDailyRecord, customHabits]);
 
   const resetDailyHabits = useCallback(async () => {
     setState(prevState => {

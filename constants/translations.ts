@@ -113,7 +113,6 @@ export const translations = {
     achievements: 'Achievements',
     myHabits: 'My Habits',
     dailyStats: 'Daily Stats',
-    viewProgress: 'View Progress 📈',
     backToHabits: '← Back to Habits',
     
     // Character

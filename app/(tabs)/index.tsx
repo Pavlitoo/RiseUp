@@ -11,21 +11,23 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAchievements } from '@/hooks/use-achievements';
 import { useBonuses } from '@/hooks/use-bonuses';
+import { useCustomHabits } from '@/hooks/use-custom-habits';
 import { useHabits } from '@/hooks/use-habits';
 import { useStatistics } from '@/hooks/use-statistics';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useLanguageKey, useTranslations } from '@/hooks/use-translations';
 import { TouchableOpacity, View } from 'react-native';
 import Animated, {
-  FadeIn,
-  SlideInDown,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming
+    FadeIn,
+    SlideInDown,
+    useAnimatedStyle,
+    useSharedValue,
+    withTiming
 } from 'react-native-reanimated';
 
 export default function HomeScreen() {
   const { habits, dailyStats, toggleHabit } = useHabits(); // Видалили loading
+  const { habits: customHabits, getTotalProgress } = useCustomHabits();
   const { newUnlocked, clearNewUnlocked } = useAchievements();
   const { getUnclaimedCount, getAvailableBonuses, dailyBonus } = useBonuses();
   const { statistics } = useStatistics();
@@ -41,6 +43,10 @@ export default function HomeScreen() {
   const unclaimedBonuses = getUnclaimedCount();
   const hasDailyBonus = dailyBonus.available && !dailyBonus.claimed;
   const totalAvailableBonuses = unclaimedBonuses + (hasDailyBonus ? 1 : 0);
+  
+  // Calculate combined stats
+  const totalHabits = habits.length + customHabits.length;
+  const completedHabits = habits.filter(h => h.completed).length + customHabits.filter(h => h.completed).length;
 
   // Show achievement modal when new achievement is unlocked
   React.useEffect(() => {
@@ -118,6 +124,12 @@ export default function HomeScreen() {
               </ThemedText>
             </View>
             <View style={styles.statItem}>
+              <ThemedText style={styles.statText}>✅</ThemedText>
+              <ThemedText style={styles.statText}>
+                {completedHabits}/{totalHabits}
+              </ThemedText>
+            </View>
+            <View style={styles.statItem}>
               <ThemedText style={styles.statText}>⭐</ThemedText>
               <ThemedText style={styles.statText}>
                 {statistics.totalExperience} XP
@@ -153,13 +165,25 @@ export default function HomeScreen() {
               />
             </Animated.View>
           ))}
+          
+          {customHabits.length > 0 && (
+            <Animated.View entering={FadeIn.delay(800).duration(600)}>
+              <Link href="/my-habits" style={styles.customHabitsLink}>
+                <ThemedView style={[styles.customHabitsButton, { backgroundColor: primaryColor }]}>
+                  <ThemedText style={[styles.customHabitsText, { color: 'white' }]}>
+                    ✨ Переглянути мої звички ({customHabits.length})
+                  </ThemedText>
+                </ThemedView>
+              </Link>
+            </Animated.View>
+          )}
         </Animated.View>
 
         <Animated.View entering={FadeIn.delay(800).duration(600)}>
           <Link href="/progress" style={styles.progressButton}>
             <ThemedView style={[styles.button, { backgroundColor: primaryColor }]}>
               <ThemedText style={[styles.buttonText, { color: 'white' }]}>
-                {t.viewProgress}
+                {t.progress}
               </ThemedText>
             </ThemedView>
           </Link>
@@ -279,5 +303,25 @@ const styles = StyleSheet.create({
   coinsText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  customHabitsLink: {
+    marginTop: 16,
+  },
+  customHabitsButton: {
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  customHabitsText: {
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 });
