@@ -1,20 +1,20 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import {
-    collection,
-    doc,
-    getDoc,
-    getDocs,
-    increment,
-    limit,
-    onSnapshot,
-    orderBy,
-    query,
-    serverTimestamp,
-    setDoc,
-    updateDoc,
-    where,
-    writeBatch
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  increment,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Achievement } from '../types/achievement';
@@ -286,7 +286,7 @@ export class FirebaseService {
     return this.executeWithOfflineSupport(
       async () => {
         const characterDoc = await getDoc(doc(db, 'character_states', userId));
-        return characterDoc.exists() ? characterDoc.data().character : null;
+        return characterDoc.exists() ? characterDoc.data()?.character || null : null;
       },
       async () => {
         const characterData = await AsyncStorage.getItem(`@riseup_character_${userId}`);
@@ -617,11 +617,11 @@ export class FirebaseService {
 
     const unsubscribes: Array<() => void> = [];
 
-    // Subscribe to habits
+    // Subscribe to custom habits
     unsubscribes.push(
-      onSnapshot(doc(db, 'user_habits', userId), (doc) => {
+      onSnapshot(doc(db, 'custom_habits', userId), (doc) => {
         if (doc.exists()) {
-          callback({ type: 'habits', data: doc.data().habits });
+          callback({ type: 'customHabits', data: doc.data().habits });
         }
       })
     );

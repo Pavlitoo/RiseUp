@@ -4,14 +4,15 @@ import { InputField } from '@/components/ui/input-field';
 import { validateName } from '@/constants/validation';
 import { useAuth } from '@/hooks/use-auth';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { useLanguageKey, useTranslations } from '@/hooks/use-translations';
+import { useLanguageChanger, useLanguageKey, useTranslations } from '@/hooks/use-translations';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
 import { Alert, Image, ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
 
 export function ProfileScreen() {
-  const { authState, logout, updateProfile, updateSettings } = useAuth();
+  const { authState, logout, updateProfile } = useAuth();
+  const changeLanguage = useLanguageChanger();
   const t = useTranslations();
   const languageKey = useLanguageKey();
   const [isEditing, setIsEditing] = useState(false);
@@ -80,21 +81,17 @@ export function ProfileScreen() {
     // Show immediate feedback
     console.log(`🎵 Music ${value ? 'enabled' : 'disabled'}`);
     
-    updateSettings({ musicEnabled: value }).then((success) => {
-      if (success) {
-        console.log('Music setting updated successfully');
-      }
-    });
+    // Тут можна додати логіку для музики
   };
 
-  const handleLanguageChange = (language: 'uk' | 'en') => {
+  const handleLanguageChange = async (language: 'uk' | 'en') => {
     // Haptic feedback
     if (process.env.EXPO_OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     
-    // Update language immediately
-    updateSettings({ language });
+    // Змінюємо мову через новий хук
+    await changeLanguage(language);
   };
 
   if (!authState.user) return null;

@@ -4,8 +4,8 @@ import { ScrollView, StyleSheet } from 'react-native';
 
 import { AchievementModal } from '@/components/achievement-modal';
 import { BonusModal } from '@/components/bonus-modal';
+import { CustomHabitCard } from '@/components/custom-habits/custom-habit-card-component';
 import { DailyStatsComponent } from '@/components/daily-stats';
-import { HabitCard } from '@/components/habit-card';
 import { MotivationalQuote } from '@/components/motivational-quote';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -18,16 +18,16 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { useLanguageKey, useTranslations } from '@/hooks/use-translations';
 import { TouchableOpacity, View } from 'react-native';
 import Animated, {
-    FadeIn,
-    SlideInDown,
-    useAnimatedStyle,
-    useSharedValue,
-    withTiming
+  FadeIn,
+  SlideInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming
 } from 'react-native-reanimated';
 
 export default function HomeScreen() {
-  const { habits, dailyStats, toggleHabit } = useHabits(); // Видалили loading
-  const { habits: customHabits, getTotalProgress } = useCustomHabits();
+  const { character, dailyStats } = useHabits();
+  const { habits: customHabits, getTotalProgress, toggleHabit } = useCustomHabits();
   const { newUnlocked, clearNewUnlocked } = useAchievements();
   const { getUnclaimedCount, getAvailableBonuses, dailyBonus } = useBonuses();
   const { statistics } = useStatistics();
@@ -45,8 +45,8 @@ export default function HomeScreen() {
   const totalAvailableBonuses = unclaimedBonuses + (hasDailyBonus ? 1 : 0);
   
   // Calculate combined stats
-  const totalHabits = habits.length + customHabits.length;
-  const completedHabits = habits.filter(h => h.completed).length + customHabits.filter(h => h.completed).length;
+  const totalHabits = customHabits.length;
+  const completedHabits = customHabits.filter(h => h.completed).length;
 
   // Show achievement modal when new achievement is unlocked
   React.useEffect(() => {
@@ -84,6 +84,56 @@ export default function HomeScreen() {
     };
   });
 
+  // Якщо немає звичок, показуємо привітальний екран
+  if (customHabits.length === 0) {
+    return (
+      <ScrollView key={languageKey} style={[styles.container, { backgroundColor }]}>
+        <ThemedView style={styles.content}>
+          <Animated.View style={[styles.welcomeContainer, animatedHeaderStyle]}>
+            <ThemedText style={styles.welcomeIcon}>🌟</ThemedText>
+            <ThemedText type="title" style={styles.welcomeTitle}>
+              Ласкаво просимо до RiseUp!
+            </ThemedText>
+            <ThemedText style={styles.welcomeDescription}>
+              Почніть свій шлях до кращого життя, створивши свою першу звичку.
+            </ThemedText>
+            
+            <Link href="/my-habits" style={styles.createHabitButton}>
+              <ThemedView style={[styles.button, { backgroundColor: primaryColor }]}>
+                <ThemedText style={[styles.buttonText, { color: 'white' }]}>
+                  ✨ Створити першу звичку
+                </ThemedText>
+              </ThemedView>
+            </Link>
+            
+            <View style={styles.featuresPreview}>
+              <ThemedText type="subtitle" style={styles.featuresTitle}>
+                Що вас чекає:
+              </ThemedText>
+              <View style={styles.featuresList}>
+                <View style={styles.featureItem}>
+                  <ThemedText style={styles.featureIcon}>🎯</ThemedText>
+                  <ThemedText style={styles.featureText}>Персональні звички</ThemedText>
+                </View>
+                <View style={styles.featureItem}>
+                  <ThemedText style={styles.featureIcon}>📊</ThemedText>
+                  <ThemedText style={styles.featureText}>Детальна статистика</ThemedText>
+                </View>
+                <View style={styles.featureItem}>
+                  <ThemedText style={styles.featureIcon}>🏆</ThemedText>
+                  <ThemedText style={styles.featureText}>Досягнення та бонуси</ThemedText>
+                </View>
+                <View style={styles.featureItem}>
+                  <ThemedText style={styles.featureIcon}>🎮</ThemedText>
+                  <ThemedText style={styles.featureText}>Віртуальний персонаж</ThemedText>
+                </View>
+              </View>
+            </View>
+          </Animated.View>
+        </ThemedView>
+      </ScrollView>
+    );
+  }
   return (
     <ScrollView key={languageKey} style={[styles.container, { backgroundColor }]}>
       <ThemedView style={styles.content}>
@@ -120,7 +170,7 @@ export default function HomeScreen() {
             <View style={styles.statItem}>
               <ThemedText style={styles.statText}>🎯</ThemedText>
               <ThemedText style={styles.statText}>
-                Рівень {statistics.totalDays > 0 ? Math.floor(statistics.totalExperience / 100) + 1 : 1}
+                Рівень {character.level}
               </ThemedText>
             </View>
             <View style={styles.statItem}>
@@ -154,24 +204,34 @@ export default function HomeScreen() {
             {t.myHabits}
           </ThemedText>
           
-          {habits.map((habit, index) => (
+          {customHabits.slice(0, 3).map((habit, index) => (
             <Animated.View
               key={habit.id}
               entering={FadeIn.delay(600 + index * 100).duration(600)}
             >
-              <HabitCard
+              <CustomHabitCard
                 habit={habit}
                 onToggle={toggleHabit}
+                onEdit={() => {}}
+                onDelete={() => {}}
               />
             </Animated.View>
           ))}
+          
+          {customHabits.length > 3 && (
+            <Animated.View entering={FadeIn.delay(800).duration(600)}>
+              <ThemedText style={styles.moreHabitsText}>
+                ... та ще {customHabits.length - 3} звичок
+              </ThemedText>
+            </Animated.View>
+          )}
           
           {customHabits.length > 0 && (
             <Animated.View entering={FadeIn.delay(800).duration(600)}>
               <Link href="/my-habits" style={styles.customHabitsLink}>
                 <ThemedView style={[styles.customHabitsButton, { backgroundColor: primaryColor }]}>
                   <ThemedText style={[styles.customHabitsText, { color: 'white' }]}>
-                    ✨ Переглянути мої звички ({customHabits.length})
+                    ✨ Керувати звичками ({customHabits.length})
                   </ThemedText>
                 </ThemedView>
               </Link>
@@ -211,6 +271,56 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 20,
+  },
+  welcomeContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  welcomeIcon: {
+    fontSize: 80,
+    marginBottom: 20,
+  },
+  welcomeTitle: {
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  welcomeDescription: {
+    textAlign: 'center',
+    fontSize: 16,
+    opacity: 0.8,
+    lineHeight: 24,
+    marginBottom: 40,
+    paddingHorizontal: 20,
+  },
+  createHabitButton: {
+    marginBottom: 40,
+  },
+  featuresPreview: {
+    width: '100%',
+    paddingHorizontal: 20,
+  },
+  featuresTitle: {
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  featuresList: {
+    gap: 16,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  featureIcon: {
+    fontSize: 24,
+    marginRight: 16,
+    width: 32,
+  },
+  featureText: {
+    fontSize: 16,
+    flex: 1,
   },
   header: {
     marginBottom: 20,
@@ -275,6 +385,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     marginBottom: 16,
     textAlign: 'center',
+  },
+  moreHabitsText: {
+    textAlign: 'center',
+    fontSize: 14,
+    opacity: 0.6,
+    fontStyle: 'italic',
+    marginVertical: 8,
   },
   progressButton: {
     marginTop: 30,

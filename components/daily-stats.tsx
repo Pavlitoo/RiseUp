@@ -63,7 +63,7 @@ export function DailyStatsComponent({ stats }: DailyStatsProps) {
           <ThemedText style={[styles.statNumber, { color: primaryColor }]}>
             {Math.round(completionRate)}%
           </ThemedText>
-          <ThemedText style={styles.statLabel}>{t.success}</ThemedText>
+          <ThemedText style={styles.statLabel}>{t.successRate}</ThemedText>
         </View>
         
         <View style={styles.statItem}>

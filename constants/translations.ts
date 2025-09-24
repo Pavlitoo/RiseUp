@@ -1,3 +1,4 @@
+// Розширені переклади з підтримкою параметрів
 export const translations = {
   uk: {
     // Auth
@@ -34,6 +35,59 @@ export const translations = {
     dailyStats: 'Статистика дня',
     viewProgress: 'Переглянути прогрес 📈',
     backToHabits: '← Повернутися до звичок',
+    more: 'Більше',
+    
+    // Common
+    loading: 'Завантаження...',
+    error: 'Помилка',
+    success: 'Успіх',
+    confirm: 'Підтвердити',
+    delete: 'Видалити',
+    edit: 'Редагувати',
+    add: 'Додати',
+    create: 'Створити',
+    update: 'Оновити',
+    close: 'Закрити',
+    back: 'Назад',
+    next: 'Далі',
+    finish: 'Завершити',
+    
+    // Habit related
+    createHabit: 'Створити звичку',
+    editHabit: 'Редагувати звичку',
+    deleteHabit: 'Видалити звичку',
+    completeHabit: 'Виконати звичку',
+    habitCompleted: 'Звичку виконано',
+    habitName: 'Назва звички',
+    habitDescription: 'Опис звички',
+    frequency: 'Частота',
+    daily: 'Щодня',
+    weekly: 'Щотижня',
+    monthly: 'Щомісяця',
+    target: 'Ціль',
+    priority: 'Пріоритет',
+    low: 'Низький',
+    medium: 'Середній',
+    high: 'Високий',
+    category: 'Категорія',
+    
+    // Stats
+    totalHabits: 'Всього звичок',
+    completedToday: 'Виконано сьогодні',
+    currentStreak: 'Поточна серія',
+    bestStreak: 'Найкраща серія',
+    completionRate: 'Відсоток виконання',
+    totalDays: 'Всього днів',
+    perfectDays: 'Ідеальних днів',
+    
+    // Messages
+    welcomeMessage: 'Ласкаво просимо до RiseUp!',
+    noHabitsMessage: 'У вас поки немає звичок. Створіть свою першу звичку!',
+    habitCreatedMessage: 'Звичку успішно створено',
+    habitUpdatedMessage: 'Звичку оновлено',
+    habitDeletedMessage: 'Звичку видалено',
+    dataBackedUpMessage: 'Дані збережено',
+    dataRestoredMessage: 'Дані відновлено',
     
     // Character
     yourProgress: '📊 Твій прогрес',
@@ -48,7 +102,7 @@ export const translations = {
     // Stats
     completed: 'Виконано',
     total: 'Всього',
-    success: 'Успішність',
+    successRate: 'Успішність',
     experienceGained: 'Досвід',
     streak: 'Серія',
     days: 'днів',
@@ -114,6 +168,59 @@ export const translations = {
     myHabits: 'My Habits',
     dailyStats: 'Daily Stats',
     backToHabits: '← Back to Habits',
+    more: 'More',
+    
+    // Common
+    loading: 'Loading...',
+    error: 'Error',
+    success: 'Success',
+    confirm: 'Confirm',
+    delete: 'Delete',
+    edit: 'Edit',
+    add: 'Add',
+    create: 'Create',
+    update: 'Update',
+    close: 'Close',
+    back: 'Back',
+    next: 'Next',
+    finish: 'Finish',
+    
+    // Habit related
+    createHabit: 'Create Habit',
+    editHabit: 'Edit Habit',
+    deleteHabit: 'Delete Habit',
+    completeHabit: 'Complete Habit',
+    habitCompleted: 'Habit Completed',
+    habitName: 'Habit Name',
+    habitDescription: 'Habit Description',
+    frequency: 'Frequency',
+    daily: 'Daily',
+    weekly: 'Weekly',
+    monthly: 'Monthly',
+    target: 'Target',
+    priority: 'Priority',
+    low: 'Low',
+    medium: 'Medium',
+    high: 'High',
+    category: 'Category',
+    
+    // Stats
+    totalHabits: 'Total Habits',
+    completedToday: 'Completed Today',
+    currentStreak: 'Current Streak',
+    bestStreak: 'Best Streak',
+    completionRate: 'Completion Rate',
+    totalDays: 'Total Days',
+    perfectDays: 'Perfect Days',
+    
+    // Messages
+    welcomeMessage: 'Welcome to RiseUp!',
+    noHabitsMessage: 'You don\'t have any habits yet. Create your first habit!',
+    habitCreatedMessage: 'Habit created successfully',
+    habitUpdatedMessage: 'Habit updated',
+    habitDeletedMessage: 'Habit deleted',
+    dataBackedUpMessage: 'Data backed up',
+    dataRestoredMessage: 'Data restored',
     
     // Character
     yourProgress: '📊 Your Progress',
@@ -128,7 +235,7 @@ export const translations = {
     // Stats
     completed: 'Completed',
     total: 'Total',
-    success: 'Success',
+    successRate: 'Success',
     experienceGained: 'Experience',
     streak: 'Streak',
     days: 'days',
@@ -161,3 +268,20 @@ export const translations = {
     nameHint: 'Only letters and spaces',
   },
 };
+
+// Функція для отримання перекладу з параметрами
+export function getTranslation(
+  language: 'uk' | 'en',
+  key: string,
+  params?: Record<string, string | number>
+): string {
+  let translation = (translations[language] as Record<string, string>)?.[key] || key;
+  
+  if (params) {
+    Object.keys(params).forEach(paramKey => {
+      translation = translation.replace(`{{${paramKey}}}`, String(params[paramKey]));
+    });
+  }
+  
+  return translation;
+}
