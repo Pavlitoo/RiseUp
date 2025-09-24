@@ -5,6 +5,7 @@ import React from 'react';
 import 'react-native-reanimated';
 
 import { AuthWrapper } from '@/components/auth/auth-wrapper';
+import { SyncStatus } from '@/components/sync-status';
 import { useAuth } from '@/hooks/use-auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFrameworkReady } from '@/hooks/use-framework-ready';
@@ -40,6 +41,7 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider key={languageKey} value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <SyncStatus />
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />

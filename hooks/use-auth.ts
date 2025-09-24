@@ -1,3 +1,4 @@
+import { firebaseService } from '@/services/FirebaseService';
 import { AuthState, User, UserSettings } from '@/types/user';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect } from 'react';
@@ -31,11 +32,25 @@ export function useAuth() {
       try {
         console.log('🔄 Loading auth state...');
         
-        const authData = await AsyncStorage.getItem(AUTH_KEY);
-        const settingsData = await AsyncStorage.getItem(SETTINGS_KEY);
-
-        const user = authData ? JSON.parse(authData) : null;
-        const settings = settingsData ? JSON.parse(settingsData) : defaultSettings;
+        // Try to load from AsyncStorage first (for offline support)
+        let authData = await AsyncStorage.getItem(AUTH_KEY);
+        let settingsData = await AsyncStorage.getItem(SETTINGS_KEY);
+        
+        let user = authData ? JSON.parse(authData) : null;
+        let settings = settingsData ? JSON.parse(settingsData) : defaultSettings;
+        
+        // If user exists, try to sync with Firebase
+        if (user) {
+          try {
+            const firebaseUser = await firebaseService.getUser(user.id);
+            if (firebaseUser) {
+              user = firebaseUser;
+              await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(user));
+            }
+          } catch (error) {
+            console.log('Firebase sync failed, using offline data:', error);
+          }
+        }
 
         console.log('✅ Loaded user:', user);
         console.log('✅ Loaded settings:', settings);
@@ -66,13 +81,18 @@ export function useAuth() {
     try {
       console.log('🔄 Attempting login for:', email);
       
-      const usersData = await AsyncStorage.getItem('@riseup_users');
-      const users = usersData ? JSON.parse(usersData) : [];
+      // Try Firebase authentication first
+      let user = await firebaseService.authenticateUser(email, password);
       
-      const user = users.find((u: any) => u.email === email && u.password === password);
+      // Fallback to local storage if Firebase fails
+      if (!user) {
+        const usersData = await AsyncStorage.getItem('@riseup_users');
+        const users = usersData ? JSON.parse(usersData) : [];
+        user = users.find((u: any) => u.email === email && u.password === password);
+      }
       
       if (user) {
-        const { password: _, ...userWithoutPassword } = user;
+        const userWithoutPassword = user;
         
         // Зберігаємо в AsyncStorage
         await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(userWithoutPassword));
@@ -100,6 +120,18 @@ export function useAuth() {
     try {
       console.log('🔄 Attempting registration for:', email);
       
+      // Check if user already exists in Firebase
+      try {
+        const existingUser = await firebaseService.authenticateUser(email, 'dummy');
+        if (existingUser) {
+          console.log('❌ Registration failed - user exists in Firebase');
+          return false;
+        }
+      } catch (error) {
+        // User doesn't exist, continue with registration
+      }
+      
+      // Check local storage as fallback
       const usersData = await AsyncStorage.getItem('@riseup_users');
       const users = usersData ? JSON.parse(usersData) : [];
       
@@ -108,10 +140,16 @@ export function useAuth() {
         return false;
       }
 
-      const newUser = {
-        id: Date.now().toString(),
+      // Create user in Firebase
+      const userId = await firebaseService.createUser({
         email,
         password,
+        name,
+      });
+      
+      const newUser = {
+        id: userId,
+        email,
         name,
         createdAt: new Date().toISOString(),
       };
@@ -119,7 +157,7 @@ export function useAuth() {
       users.push(newUser);
       await AsyncStorage.setItem('@riseup_users', JSON.stringify(users));
 
-      const { password: _, ...userWithoutPassword } = newUser;
+      const userWithoutPassword = newUser;
       
       // Зберігаємо в AsyncStorage
       await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(userWithoutPassword));
@@ -165,6 +203,13 @@ export function useAuth() {
       console.log('🔄 Updating profile:', updates);
       
       const updatedUser = { ...authState.user, ...updates };
+      
+      // Update in Firebase
+      try {
+        await firebaseService.updateUser(authState.user.id, updates);
+      } catch (error) {
+        console.log('Firebase update failed, updating locally:', error);
+      }
       
       // Оновлюємо в users storage
       const usersData = await AsyncStorage.getItem('@riseup_users');

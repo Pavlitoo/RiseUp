@@ -1,5 +1,7 @@
+import { firebaseService } from '@/services/FirebaseService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect } from 'react';
+import { useAuth } from './use-auth';
 import { createGlobalState } from './use-global-state';
 
 const BONUSES_KEY = '@riseup_bonuses';
@@ -146,14 +148,31 @@ const useGlobalBonusesState = createGlobalState(defaultState);
 
 export function useBonuses() {
   const [state, setState] = useGlobalBonusesState();
+  const { authState } = useAuth();
 
   useEffect(() => {
+    if (!authState.user) return;
+    
     let isMounted = true;
     
     const loadBonuses = async () => {
       try {
-        const data = await AsyncStorage.getItem(BONUSES_KEY);
-        const bonusesData = data ? JSON.parse(data) : defaultState;
+        // Try to load from Firebase first
+        let bonusesData = defaultState;
+        
+        try {
+          let firebaseBonuses = null;
+          if (authState.user) {
+            firebaseBonuses = await firebaseService.getBonuses(authState.user.id);
+          }
+          if (firebaseBonuses) {
+            bonusesData = firebaseBonuses;
+          }
+        } catch (error) {
+          console.log('Firebase load failed, using local data:', error);
+          const data = await AsyncStorage.getItem(BONUSES_KEY);
+          bonusesData = data ? JSON.parse(data) : defaultState;
+        }
 
         if (isMounted) {
           setState(bonusesData);
@@ -168,15 +187,23 @@ export function useBonuses() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [authState.user]);
 
   const saveBonuses = useCallback(async (bonusesState: BonusesState) => {
     try {
-      await AsyncStorage.setItem(BONUSES_KEY, JSON.stringify(bonusesState));
+      const savePromises = [
+        AsyncStorage.setItem(BONUSES_KEY, JSON.stringify(bonusesState))
+      ];
+      
+      if (authState.user) {
+        savePromises.push(firebaseService.saveBonuses(authState.user.id, bonusesState));
+      }
+      
+      await Promise.all(savePromises);
     } catch (error) {
       console.error('Error saving bonuses:', error);
     }
-  }, []);
+  }, [authState.user]);
 
   const checkBonuses = useCallback((data: {
     totalCompletions?: number;

@@ -1,5 +1,7 @@
+import { firebaseService } from '@/services/FirebaseService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect } from 'react';
+import { useAuth } from './use-auth';
 import { createGlobalState } from './use-global-state';
 
 const STATISTICS_KEY = '@riseup_statistics';
@@ -70,19 +72,37 @@ const useGlobalStatisticsState = createGlobalState(defaultState);
 
 export function useStatistics() {
   const [state, setState] = useGlobalStatisticsState();
+  const { authState } = useAuth();
 
   useEffect(() => {
+    if (!authState.user) return;
+    
     let isMounted = true;
     
     const loadStatistics = async () => {
       try {
-        const [statisticsData, historyData] = await Promise.all([
-          AsyncStorage.getItem(STATISTICS_KEY),
-          AsyncStorage.getItem(DAILY_HISTORY_KEY),
-        ]);
-
-        const overallStats = statisticsData ? JSON.parse(statisticsData) : defaultStats;
-        const dailyHistory = historyData ? JSON.parse(historyData) : [];
+        // Try to load from Firebase first
+        let overallStats = defaultStats;
+        let dailyHistory = [];
+        
+        try {
+          const firebaseRecords = authState.user ? 
+            await firebaseService.getDailyRecords(authState.user.id, 365) : [];
+          if (firebaseRecords.length > 0) {
+            dailyHistory = firebaseRecords;
+            // Recalculate overall stats from Firebase data
+            overallStats = calculateOverallStats(dailyHistory);
+          }
+        } catch (error) {
+          console.log('Firebase load failed, using local data:', error);
+          const [statisticsData, historyData] = await Promise.all([
+            AsyncStorage.getItem(STATISTICS_KEY),
+            AsyncStorage.getItem(DAILY_HISTORY_KEY),
+          ]);
+          
+          overallStats = statisticsData ? JSON.parse(statisticsData) : defaultStats;
+          dailyHistory = historyData ? JSON.parse(historyData) : [];
+        }
 
         if (isMounted) {
           setState(prev => ({
@@ -101,18 +121,76 @@ export function useStatistics() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [authState.user]);
 
   const saveStatistics = useCallback(async (stats: OverallStats, history: DailyRecord[]) => {
     try {
-      await Promise.all([
+      const savePromises = [
         AsyncStorage.setItem(STATISTICS_KEY, JSON.stringify(stats)),
         AsyncStorage.setItem(DAILY_HISTORY_KEY, JSON.stringify(history)),
-      ]);
+      ];
+      
+      if (authState.user) {
+        // Save each daily record to Firebase
+        const firebasePromises = history.slice(-30).map(record => 
+          firebaseService.saveDailyRecord(authState.user!.id, record.date, record)
+        );
+        savePromises.push(...firebasePromises);
+      }
+      
+      await Promise.all(savePromises);
     } catch (error) {
       console.error('Error saving statistics:', error);
     }
-  }, []);
+  }, [authState.user]);
+  
+  const calculateOverallStats = useCallback((history: DailyRecord[]): OverallStats => {
+    if (history.length === 0) return defaultStats;
+    
+    const totalDays = history.length;
+    const totalCompletions = history.reduce((sum, record) => sum + (record.completedHabits?.length || 0), 0);
+    const perfectDays = history.filter(record => record.perfectDay).length;
+    const totalExperience = history.reduce((sum, record) => sum + (record.experienceGained || 0), 0);
+    const averageCompletion = totalDays > 0 ? totalCompletions / totalDays : 0;
+    
+    // Calculate current streak
+    let currentStreak = 0;
+    const sortedHistory = [...history].sort((a, b) => b.date.localeCompare(a.date));
+    
+    for (const record of sortedHistory) {
+      if ((record.completedHabits?.length || 0) > 0) {
+        currentStreak++;
+      } else {
+        break;
+      }
+    }
+    
+    // Calculate best streak
+    let bestStreak = 0;
+    let tempStreak = 0;
+    
+    for (const record of sortedHistory.reverse()) {
+      if ((record.completedHabits?.length || 0) > 0) {
+        tempStreak++;
+        bestStreak = Math.max(bestStreak, tempStreak);
+      } else {
+        tempStreak = 0;
+      }
+    }
+    
+    return {
+      totalDays,
+      totalCompletions,
+      perfectDays,
+      currentStreak,
+      bestStreak,
+      totalExperience,
+      averageCompletion,
+      firstHabitDate: history.length > 0 ? 
+        history.sort((a, b) => a.date.localeCompare(b.date))[0].date : 
+        new Date().toISOString().split('T')[0],
+    };
+  }, [defaultStats]);
 
   const updateDailyRecord = useCallback((completedHabitIds: string[], totalHabits: number) => {
     const today = new Date().toISOString().split('T')[0];

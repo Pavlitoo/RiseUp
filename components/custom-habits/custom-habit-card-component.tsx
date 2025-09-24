@@ -10,14 +10,139 @@ import React, { useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { HabitCreationModal } from './habit-creation-modal';
-// TODO: Update the import path below to the actual location of CustomHabitCard, for example:
-import { CustomHabitCard } from './custom-habit-card-component'; // Adjust the path as needed
-/**
- * Виправте шлях до компонента CustomHabitCard згідно вашої структури проекту.
- * Якщо CustomHabitCard знаходиться у цьому ж файлі, визначте його тут.
- * Якщо у файлі custom-habit-card.tsx, використовуйте:
- * import { CustomHabitCard } from './custom-habit-card';
- */
+
+interface CustomHabitCardProps {
+  habit: CustomHabit;
+  onToggle: (habitId: string) => void;
+  onEdit: (habit: CustomHabit) => void;
+  onDelete: (habitId: string) => void;
+}
+
+export function CustomHabitCard({ habit, onToggle, onEdit, onDelete }: CustomHabitCardProps) {
+  const cardBackground = useThemeColor({}, 'cardBackground');
+  const borderColor = useThemeColor({}, 'border');
+  const primaryColor = useThemeColor({}, 'primary');
+  const errorColor = useThemeColor({}, 'error');
+
+  const handleToggle = () => {
+    if (process.env.EXPO_OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    onToggle(habit.id);
+  };
+
+  const handleEdit = () => {
+    onEdit(habit);
+  };
+
+  const handleDelete = () => {
+    onDelete(habit.id);
+  };
+
+  const getProgressPercentage = () => {
+    return Math.min((habit.currentCount / habit.targetCount) * 100, 100);
+  };
+
+  const getPriorityColor = () => {
+    switch (habit.priority) {
+      case 'high': return errorColor;
+      case 'medium': return '#f59e0b';
+      case 'low': return '#6b7280';
+      default: return borderColor;
+    }
+  };
+
+  return (
+    <ThemedView style={[
+      styles.card,
+      { 
+        backgroundColor: cardBackground,
+        borderColor: habit.completed ? primaryColor : borderColor,
+        borderWidth: habit.completed ? 2 : 1,
+      }
+    ]}>
+      <View style={styles.header}>
+        <View style={styles.habitInfo}>
+          <View style={styles.iconContainer}>
+            <ThemedText style={[styles.icon, { color: habit.color }]}>
+              {habit.icon}
+            </ThemedText>
+          </View>
+          <View style={styles.textInfo}>
+            <ThemedText type="defaultSemiBold" style={styles.name}>
+              {habit.name}
+            </ThemedText>
+            {habit.description && (
+              <ThemedText style={styles.description}>
+                {habit.description}
+              </ThemedText>
+            )}
+            <View style={styles.metadata}>
+              <ThemedText style={[styles.priority, { color: getPriorityColor() }]}>
+                {habit.priority === 'high' ? '🔴' : habit.priority === 'medium' ? '🟡' : '🔵'}
+              </ThemedText>
+              <ThemedText style={styles.frequency}>
+                {habit.frequency === 'daily' ? 'Щодня' : 
+                 habit.frequency === 'weekly' ? 'Щотижня' : 'Щомісяця'}
+              </ThemedText>
+            </View>
+          </View>
+        </View>
+        
+        <View style={styles.actions}>
+          <TouchableOpacity onPress={handleEdit} style={styles.actionButton}>
+            <ThemedText style={styles.actionIcon}>✏️</ThemedText>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleDelete} style={styles.actionButton}>
+            <ThemedText style={styles.actionIcon}>🗑️</ThemedText>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={styles.progress}>
+        <View style={styles.progressInfo}>
+          <ThemedText style={styles.progressText}>
+            {habit.currentCount} / {habit.targetCount}
+          </ThemedText>
+          <ThemedText style={styles.streakText}>
+            🔥 {habit.streak}
+          </ThemedText>
+        </View>
+        
+        <View style={[styles.progressBar, { backgroundColor: borderColor }]}>
+          <View
+            style={[
+              styles.progressFill,
+              {
+                width: `${getProgressPercentage()}%`,
+                backgroundColor: habit.color,
+              }
+            ]}
+          />
+        </View>
+      </View>
+
+      <TouchableOpacity
+        style={[
+          styles.toggleButton,
+          {
+            backgroundColor: habit.completed ? primaryColor : 'transparent',
+            borderColor: primaryColor,
+          }
+        ]}
+        onPress={handleToggle}
+      >
+        <ThemedText style={[
+          styles.toggleText,
+          { color: habit.completed ? 'white' : primaryColor }
+        ]}>
+          {habit.completed ? '✓ Виконано' : 'Виконати'}
+        </ThemedText>
+      </TouchableOpacity>
+    </ThemedView>
+  );
+}
+
 export function HabitsManager() {
   const { habits, loading, toggleHabit, deleteHabit, getTotalProgress } = useCustomHabits();
   const t = useTranslations();
@@ -227,11 +352,112 @@ export function HabitsManager() {
 }
 
 const styles = StyleSheet.create({
+  // CustomHabitCard styles
+  card: {
+    borderRadius: 16,
+    padding: 16,
+    marginVertical: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  habitInfo: {
+    flexDirection: 'row',
+    flex: 1,
+  },
+  iconContainer: {
+    marginRight: 12,
+  },
+  icon: {
+    fontSize: 24,
+  },
+  textInfo: {
+    flex: 1,
+  },
+  name: {
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  description: {
+    fontSize: 12,
+    opacity: 0.7,
+    marginBottom: 4,
+  },
+  metadata: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  priority: {
+    fontSize: 12,
+  },
+  frequency: {
+    fontSize: 12,
+    opacity: 0.6,
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionButton: {
+    padding: 4,
+  },
+  actionIcon: {
+    fontSize: 16,
+  },
+  progress: {
+    marginBottom: 12,
+  },
+  progressInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  progressText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  streakText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  progressBar: {
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  toggleButton: {
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  toggleText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  // HabitsManager styles
   container: {
     flex: 1,
     padding: 20,
   },
-  header: {
+  managerHeader: {
     alignItems: 'center',
     marginBottom: 20,
     paddingTop: 20,
@@ -349,11 +575,3 @@ const styles = StyleSheet.create({
     marginTop: 100,
   },
 });
-
-// TODO: Import or define CustomHabitCard here if not already present
-// Example import (adjust the path as needed):
-// import { CustomHabitCard } from './custom-habit-card-component-file';
-
-// If CustomHabitCard is defined in another file, import it above and export here:
-export { };
-

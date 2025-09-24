@@ -1,7 +1,10 @@
+import { firebaseService } from '@/services/FirebaseService';
 import { CharacterState, DailyStats, Habit } from '@/types/habit';
+import { analytics } from '@/utils/analytics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect } from 'react';
 import { useAchievements } from './use-achievements';
+import { useAuth } from './use-auth';
 import { useBonuses } from './use-bonuses';
 import { useCustomHabits } from './use-custom-habits';
 import { createGlobalState } from './use-global-state';
@@ -71,6 +74,7 @@ const useGlobalHabitsState = createGlobalState(defaultHabitsState);
 
 export function useHabits() {
   const [state, setState] = useGlobalHabitsState();
+  const { authState } = useAuth();
   const { checkAchievements } = useAchievements();
   const { checkBonuses } = useBonuses();
   const { habits: customHabits, getTotalProgress: getCustomProgress } = useCustomHabits();
@@ -78,21 +82,44 @@ export function useHabits() {
 
   // Завантажуємо дані тільки один раз при ініціалізації
   useEffect(() => {
+    if (!authState.user) return;
+    
     let isMounted = true;
     
     const loadData = async () => {
       try {
         console.log('🔄 Loading habits data from storage...');
         
+        // Try to load from Firebase first
+        let habits = defaultHabits;
+        let character = defaultCharacter;
+        let dailyStats = null;
+        let totalCompletions = 0;
+        
+        try {
+          if (authState.user) {
+            const [firebaseHabits, firebaseCharacter] = await Promise.all([
+              firebaseService.getHabits(authState.user.id),
+              firebaseService.getCharacterState(authState.user.id)
+            ]);
+          
+            if (firebaseHabits.length > 0) habits = firebaseHabits;
+            if (firebaseCharacter) character = firebaseCharacter;
+          }
+        } catch (error) {
+          console.log('Firebase load failed, using local data:', error);
+        }
+        
+        // Fallback to AsyncStorage
         const habitsData = await AsyncStorage.getItem(HABITS_KEY);
         const characterData = await AsyncStorage.getItem(CHARACTER_KEY);
         const statsData = await AsyncStorage.getItem(STATS_KEY);
         const totalCompletionsData = await AsyncStorage.getItem(TOTAL_COMPLETIONS_KEY);
 
-        const habits = habitsData ? JSON.parse(habitsData) : defaultHabits;
-        const character = characterData ? JSON.parse(characterData) : defaultCharacter;
-        const dailyStats = statsData ? JSON.parse(statsData) : null;
-        const totalCompletions = totalCompletionsData ? JSON.parse(totalCompletionsData) : 0;
+        if (habitsData && habits === defaultHabits) habits = JSON.parse(habitsData);
+        if (characterData && character === defaultCharacter) character = JSON.parse(characterData);
+        if (statsData) dailyStats = JSON.parse(statsData);
+        if (totalCompletionsData) totalCompletions = JSON.parse(totalCompletionsData);
 
         console.log('✅ Loaded habits:', habits);
         console.log('✅ Loaded character:', character);
@@ -120,9 +147,11 @@ export function useHabits() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [authState.user]);
 
   const updateCharacterProgress = useCallback((currentHabits: Habit[]) => {
+    if (!authState.user) return;
+    
     // Include both default and custom habits in character progress
     const customCompletedCount = customHabits.filter(h => h.completed).length;
     const completedCount = currentHabits.filter(h => h.completed).length + customCompletedCount;
@@ -154,10 +183,21 @@ export function useHabits() {
         newCharacter.maxExperience += 50;
         newCharacter.maxHealth += 20;
         newCharacter.health = newCharacter.maxHealth;
+        
+        // Track level up
+        analytics.trackLevelUp(newCharacter.level, authState.user?.id);
       }
 
       // Зберігаємо в AsyncStorage
-      AsyncStorage.setItem(CHARACTER_KEY, JSON.stringify(newCharacter))
+      const savePromises = [
+        AsyncStorage.setItem(CHARACTER_KEY, JSON.stringify(newCharacter))
+      ];
+      
+      if (authState.user) {
+        savePromises.push(firebaseService.saveCharacterState(authState.user.id, newCharacter));
+      }
+      
+      Promise.all(savePromises)
         .then(() => console.log('✅ Character saved to storage'))
         .catch(error => console.error('❌ Error saving character:', error));
 
@@ -166,7 +206,7 @@ export function useHabits() {
         character: newCharacter,
       };
     });
-  }, [setState, customHabits]);
+  }, [setState, customHabits, authState.user]);
 
   const updateDailyStats = useCallback((currentHabits: Habit[]) => {
     const today = new Date().toDateString();
@@ -196,6 +236,8 @@ export function useHabits() {
   const toggleHabit = useCallback(async (habitId: string) => {
     console.log('🔄 Toggling habit:', habitId);
     
+    if (!authState.user) return;
+    
     const today = new Date().toDateString();
     
     setState(prevState => {
@@ -206,6 +248,11 @@ export function useHabits() {
           const newCompleted = !wasCompleted;
           
           // Update total completions
+          if (newCompleted) {
+            analytics.trackHabitCompleted(habitId, habit.name, authState.user?.id);
+          } else {
+            analytics.trackHabitSkipped(habitId, habit.name, authState.user?.id);
+          }
           if (newCompleted && !wasCompleted) {
             newTotalCompletions += 1;
           } else if (!newCompleted && wasCompleted) {
@@ -235,6 +282,11 @@ export function useHabits() {
         .then(() => {
           console.log('✅ Habits saved to storage');
           // Оновлюємо персонажа та статистику
+          // Save to Firebase
+          if (authState.user) {
+            firebaseService.saveHabits(authState.user.id, updatedHabits);
+          }
+          
           updateCharacterProgress(updatedHabits);
           updateDailyStats(updatedHabits);
           
@@ -269,8 +321,27 @@ export function useHabits() {
             updatedHabits.filter(h => h.completed).map(h => h.id),
             updatedHabits.length
           );
+          
+          // Save analytics to Firebase
+          if (authState.user) {
+            const saveAnalytics = async () => {
+              await firebaseService.saveUserAnalytics(authState.user!.id, {
+              completedHabits: completedToday,
+              totalHabits: updatedHabits.length,
+              completionRate: (completedToday / updatedHabits.length) * 100,
+              currentStreak: Math.max(...Object.values(streaks)),
+              level: prevState.character.level
+              });
+            };
+            
+            saveAnalytics().catch(error => {
+              console.error('Failed to save analytics:', error);
+            });
+          }
         })
-        .catch(error => console.error('❌ Error saving habits:', error));
+        .catch(error => {
+          console.error('❌ Error saving habits:', error);
+        });
 
       return {
         ...prevState,
@@ -278,7 +349,7 @@ export function useHabits() {
         totalCompletions: newTotalCompletions,
       };
     });
-  }, [setState, updateCharacterProgress, updateDailyStats, checkAchievements, checkBonuses, updateDailyRecord, customHabits]);
+  }, [setState, updateCharacterProgress, updateDailyStats, checkAchievements, checkBonuses, updateDailyRecord, customHabits, authState.user]);
 
   const resetDailyHabits = useCallback(async () => {
     setState(prevState => {
