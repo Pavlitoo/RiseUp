@@ -1,3 +1,4 @@
+import { translationService } from '@/services/TranslationService';
 import { HabitTemplate } from '@/types/custom-habit';
 
 export const habitCategories = [
@@ -211,3 +212,24 @@ export const habitColors = [
   '#8b5cf6', '#a855f7', '#c084fc', '#d946ef', '#ec4899', '#f43f5e',
   '#64748b', '#6b7280', '#374151', '#1f2937',
 ];
+
+// Функція для отримання перекладених категорій
+export const getTranslatedCategories = async (language: 'uk' | 'en') => {
+  return Promise.all(
+    habitCategories.map(async (category) => ({
+      ...category,
+      name: await translationService.translateText(category.name, language),
+    }))
+  );
+};
+
+// Функція для отримання перекладених шаблонів
+export const getTranslatedTemplates = async (language: 'uk' | 'en') => {
+  return Promise.all(
+    habitTemplates.map(async (template) => ({
+      ...template,
+      name: await translationService.translateText(template.name, language),
+      description: await translationService.translateText(template.description, language),
+    }))
+  );
+};

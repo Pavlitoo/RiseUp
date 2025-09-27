@@ -1,8 +1,7 @@
 import { firebaseService } from '@/services/FirebaseService';
 import { AuthState, User, UserSettings } from '@/types/user';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useCallback, useEffect } from 'react';
-import { createGlobalState } from './use-global-state';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 const AUTH_KEY = '@riseup_auth';
 const SETTINGS_KEY = '@riseup_settings';
@@ -18,23 +17,26 @@ const defaultAuthState: AuthState = {
   settings: defaultSettings,
 };
 
-// Створюємо глобальний стан
-const useGlobalAuthState = createGlobalState(defaultAuthState);
-
 export function useAuth() {
-  const [authState, setAuthState] = useGlobalAuthState();
+  const [authState, setAuthState] = useState<AuthState>({ ...defaultAuthState, loading: true });
+  const isInitialized = useRef(false);
+  const loadingPromise = useRef<Promise<void> | null>(null);
 
   // Завантажуємо стан тільки один раз при ініціалізації
   useEffect(() => {
-    let isMounted = true;
+    if (isInitialized.current || loadingPromise.current) return;
+    
+    isInitialized.current = true;
     
     const loadAuthState = async () => {
       try {
         console.log('🔄 Loading auth state...');
         
         // Try to load from AsyncStorage first (for offline support)
-        let authData = await AsyncStorage.getItem(AUTH_KEY);
-        let settingsData = await AsyncStorage.getItem(SETTINGS_KEY);
+        const [authData, settingsData] = await Promise.all([
+          AsyncStorage.getItem(AUTH_KEY),
+          AsyncStorage.getItem(SETTINGS_KEY)
+        ]);
         
         let user = authData ? JSON.parse(authData) : null;
         let settings = settingsData ? JSON.parse(settingsData) : defaultSettings;
@@ -55,27 +57,26 @@ export function useAuth() {
         console.log('✅ Loaded user:', user);
         console.log('✅ Loaded settings:', settings);
 
-        if (isMounted) {
-          setAuthState({
-            isAuthenticated: !!user,
-            user,
-            settings,
-          });
-        }
+        setAuthState({
+          isAuthenticated: !!user,
+          user,
+          settings,
+          loading: false,
+        });
       } catch (error) {
         console.error('❌ Error loading auth state:', error);
-        if (isMounted) {
-          setAuthState(defaultAuthState);
-        }
+        setAuthState({
+          ...defaultAuthState,
+          loading: false,
+        });
       }
     };
 
-    loadAuthState();
-    
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+    loadingPromise.current = loadAuthState();
+    loadingPromise.current.finally(() => {
+      loadingPromise.current = null;
+    });
+  }, []); // Порожній масив залежностей - ефект виконується тільки один раз
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     try {
@@ -86,22 +87,26 @@ export function useAuth() {
       
       // Fallback to local storage if Firebase fails
       if (!user) {
+        console.log('🔄 Trying local authentication...');
         const usersData = await AsyncStorage.getItem('@riseup_users');
         const users = usersData ? JSON.parse(usersData) : [];
-        user = users.find((u: any) => u.email === email && u.password === password);
+        const foundUser = users.find((u: any) => u.email === email && u.password === password);
+        if (foundUser) {
+          // Видаляємо пароль з відповіді
+          const { password: _, ...userWithoutPassword } = foundUser;
+          user = userWithoutPassword;
+        }
       }
       
       if (user) {
-        const userWithoutPassword = user;
-        
         // Зберігаємо в AsyncStorage
-        await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(userWithoutPassword));
+        await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(user));
         
-        // Миттєво оновлюємо глобальний стан
+        // Оновлюємо стан
         setAuthState(prev => ({
           ...prev,
           isAuthenticated: true,
-          user: userWithoutPassword,
+          user: user,
         }));
         
         console.log('✅ Login successful');
@@ -114,22 +119,11 @@ export function useAuth() {
       console.error('❌ Login error:', error);
       return false;
     }
-  }, [setAuthState]);
+  }, []);
 
   const register = useCallback(async (email: string, password: string, name: string): Promise<boolean> => {
     try {
       console.log('🔄 Attempting registration for:', email);
-      
-      // Check if user already exists in Firebase
-      try {
-        const existingUser = await firebaseService.authenticateUser(email, 'dummy');
-        if (existingUser) {
-          console.log('❌ Registration failed - user exists in Firebase');
-          return false;
-        }
-      } catch (error) {
-        // User doesn't exist, continue with registration
-      }
       
       // Check local storage as fallback
       const usersData = await AsyncStorage.getItem('@riseup_users');
@@ -154,19 +148,18 @@ export function useAuth() {
         createdAt: new Date().toISOString(),
       };
 
-      users.push(newUser);
+      // Додаємо користувача з паролем для локального зберігання
+      users.push({ ...newUser, password });
       await AsyncStorage.setItem('@riseup_users', JSON.stringify(users));
 
-      const userWithoutPassword = newUser;
-      
       // Зберігаємо в AsyncStorage
-      await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(userWithoutPassword));
+      await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(newUser));
       
-      // Миттєво оновлюємо глобальний стан
+      // Оновлюємо стан
       setAuthState(prev => ({
         ...prev,
         isAuthenticated: true,
-        user: userWithoutPassword,
+        user: newUser,
       }));
       
       console.log('✅ Registration successful');
@@ -175,7 +168,7 @@ export function useAuth() {
       console.error('❌ Register error:', error);
       return false;
     }
-  }, [setAuthState]);
+  }, []);
 
   const logout = useCallback(async () => {
     try {
@@ -183,7 +176,7 @@ export function useAuth() {
       
       await AsyncStorage.removeItem(AUTH_KEY);
       
-      // Миттєво оновлюємо глобальний стан
+      // Оновлюємо стан
       setAuthState(prev => ({
         ...prev,
         isAuthenticated: false,
@@ -194,7 +187,7 @@ export function useAuth() {
     } catch (error) {
       console.error('❌ Logout error:', error);
     }
-  }, [setAuthState]);
+  }, []);
 
   const updateProfile = useCallback(async (updates: Partial<User>) => {
     if (!authState.user) return false;
@@ -224,7 +217,7 @@ export function useAuth() {
       // Зберігаємо в auth storage
       await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(updatedUser));
       
-      // Миттєво оновлюємо глобальний стан
+      // Оновлюємо стан
       setAuthState(prev => ({
         ...prev,
         user: updatedUser,
@@ -236,7 +229,7 @@ export function useAuth() {
       console.error('❌ Update profile error:', error);
       return false;
     }
-  }, [authState.user, setAuthState]);
+  }, [authState.user]);
 
   const updateSettings = useCallback(async (updates: Partial<UserSettings>) => {
     try {
@@ -247,7 +240,7 @@ export function useAuth() {
       // Зберігаємо в storage
       await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(newSettings));
       
-      // Миттєво оновлюємо глобальний стан
+      // Оновлюємо стан
       setAuthState(prev => ({
         ...prev,
         settings: newSettings,
@@ -259,11 +252,11 @@ export function useAuth() {
       console.error('❌ Error updating settings:', error);
       return false;
     }
-  }, [authState.settings, setAuthState]);
+  }, [authState.settings]);
 
   return {
     authState,
-    loading: false, // Завжди false, оскільки стан завантажується асинхронно
+    loading: authState.loading || false,
     login,
     register,
     logout,

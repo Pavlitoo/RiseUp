@@ -42,6 +42,22 @@ export function CustomHabitCard({ habit, onToggle, onEdit, onDelete }: CustomHab
   const getProgressPercentage = () => {
     return Math.min((habit.currentCount / habit.targetCount) * 100, 100);
   };
+  
+  const isDeadlineApproaching = () => {
+    if (!habit.deadline) return false;
+    const deadline = new Date(habit.deadline);
+    const today = new Date();
+    const diffTime = deadline.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays <= 3 && diffDays >= 0;
+  };
+  
+  const isDeadlinePassed = () => {
+    if (!habit.deadline) return false;
+    const deadline = new Date(habit.deadline);
+    const today = new Date();
+    return deadline < today;
+  };
 
   const getPriorityColor = () => {
     switch (habit.priority) {
@@ -59,6 +75,7 @@ export function CustomHabitCard({ habit, onToggle, onEdit, onDelete }: CustomHab
         backgroundColor: cardBackground,
         borderColor: habit.completed ? primaryColor : borderColor,
         borderWidth: habit.completed ? 2 : 1,
+        opacity: isDeadlinePassed() ? 0.6 : 1,
       }
     ]}>
       <View style={styles.header}>
@@ -85,6 +102,17 @@ export function CustomHabitCard({ habit, onToggle, onEdit, onDelete }: CustomHab
                 {habit.frequency === 'daily' ? 'Щодня' : 
                  habit.frequency === 'weekly' ? 'Щотижня' : 'Щомісяця'}
               </ThemedText>
+              {habit.deadline && (
+                <ThemedText style={[
+                  styles.deadline,
+                  { 
+                    color: isDeadlinePassed() ? errorColor : 
+                           isDeadlineApproaching() ? '#f59e0b' : borderColor 
+                  }
+                ]}>
+                  📅 {new Date(habit.deadline).toLocaleDateString('uk-UA')}
+                </ThemedText>
+              )}
             </View>
           </View>
         </View>
@@ -131,12 +159,14 @@ export function CustomHabitCard({ habit, onToggle, onEdit, onDelete }: CustomHab
           }
         ]}
         onPress={handleToggle}
+        disabled={isDeadlinePassed()}
       >
         <ThemedText style={[
           styles.toggleText,
           { color: habit.completed ? 'white' : primaryColor }
         ]}>
-          {habit.completed ? '✓ Виконано' : 'Виконати'}
+          {isDeadlinePassed() ? '⏰ Прострочено' : 
+           habit.completed ? '✓ Виконано' : 'Виконати'}
         </ThemedText>
       </TouchableOpacity>
     </ThemedView>
@@ -184,7 +214,7 @@ export function HabitsManager() {
     : habits.filter(habit => habit.category === selectedCategory);
 
   const completedHabits = habits.filter(h => h.completed).length;
-  const totalProgress = getTotalProgress();
+  const totalProgress = getTotalProgress(); // Виправлення: викликаємо функцію
 
   const CategoryFilter = () => (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryFilter}>
@@ -207,7 +237,7 @@ export function HabitsManager() {
       </TouchableOpacity>
       
       {habitCategories.map(category => {
-        const categoryHabits = habits.filter(h => h.category === category.id);
+        const categoryHabits = habits.filter((h: CustomHabit) => h.category === category.id);
         if (categoryHabits.length === 0) return null;
         
         return (
@@ -298,7 +328,7 @@ export function HabitsManager() {
           {/* Habits list */}
           <ScrollView style={styles.habitsList} showsVerticalScrollIndicator={false}>
             {filteredHabits.length > 0 ? (
-              filteredHabits.map((habit, index) => (
+              filteredHabits.map((habit: CustomHabit, index: number) => (
                 <Animated.View
                   key={habit.id}
                   entering={FadeIn.delay(600 + index * 100).duration(600)}
@@ -406,6 +436,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     opacity: 0.6,
   },
+  deadline: {
+    fontSize: 12,
+    fontWeight: '600',
+    opacity: 0.8,
+  },
   actions: {
     flexDirection: 'row',
     gap: 8,
@@ -455,12 +490,9 @@ const styles = StyleSheet.create({
   // HabitsManager styles
   container: {
     flex: 1,
-    padding: 20,
-  },
-  managerHeader: {
-    alignItems: 'center',
-    marginBottom: 20,
-    paddingTop: 20,
+    paddingHorizontal: 20,
+    paddingTop: 60, // Додаємо відступ зверху для статус бару
+    paddingBottom: 20,
   },
   title: {
     textAlign: 'center',
@@ -573,5 +605,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 18,
     marginTop: 100,
-  },
+  }
 });

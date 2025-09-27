@@ -2,20 +2,13 @@ import { firebaseService } from '@/services/FirebaseService';
 import { CharacterState, DailyStats } from '@/types/habit';
 import { analytics } from '@/utils/analytics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useCallback, useEffect } from 'react';
-import { useAchievements } from './use-achievements';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from './use-auth';
-import { useBonuses } from './use-bonuses';
-import { useCustomHabits } from './use-custom-habits';
-import { createGlobalState } from './use-global-state';
-import { useStatistics } from './use-statistics';
 
-const HABITS_KEY = '@riseup_habits';
 const CHARACTER_KEY = '@riseup_character';
 const STATS_KEY = '@riseup_stats';
 const TOTAL_COMPLETIONS_KEY = '@riseup_total_completions';
 
-// Видаляємо хардкодні звички - тепер все буде динамічно
 const defaultCharacter: CharacterState = {
   level: 1,
   health: 100,
@@ -37,22 +30,18 @@ const defaultHabitsState: HabitsState = {
   totalCompletions: 0,
 };
 
-// Створюємо глобальний стан (тепер без хардкодних звичок)
-const useGlobalHabitsState = createGlobalState(defaultHabitsState);
-
 export function useHabits() {
-  const [state, setState] = useGlobalHabitsState();
+  const [state, setState] = useState(defaultHabitsState);
   const { authState } = useAuth();
-  const { checkAchievements } = useAchievements();
-  const { checkBonuses } = useBonuses();
-  const { habits: customHabits } = useCustomHabits();
-  const { updateDailyRecord } = useStatistics();
+  const isInitialized = useRef(false);
+  const currentUserId = useRef<string | null>(null);
 
   // Завантажуємо дані тільки один раз при ініціалізації
   useEffect(() => {
-    if (!authState.user) return;
+    if (!authState.user?.id) return;
+    if (isInitialized.current) return;
     
-    let isMounted = true;
+    isInitialized.current = true;
     
     const loadData = async () => {
       try {
@@ -85,36 +74,28 @@ export function useHabits() {
         console.log('✅ Loaded stats:', dailyStats);
         console.log('✅ Loaded total completions:', totalCompletions);
 
-        if (isMounted) {
-          setState({
-            character,
-            dailyStats,
-            totalCompletions,
-          });
-        }
+        setState({
+          character,
+          dailyStats,
+          totalCompletions,
+        });
       } catch (error) {
         console.error('❌ Error loading habits data:', error);
-        if (isMounted) {
-          setState(defaultHabitsState);
-        }
+        setState(defaultHabitsState);
       }
     };
 
     loadData();
-    
-    return () => {
-      isMounted = false;
-    };
-  }, [authState.user]);
+  }, []); // Порожній масив залежностей
 
-  const updateCharacterProgress = useCallback(() => {
+  // Функція для оновлення персонажа (викликається ззовні)
+  const updateCharacterProgress = useCallback((customHabits: any[]) => {
     if (!authState.user) return;
     
-    // Use only custom habits for character progress
     const customCompletedCount = customHabits.filter(h => h.completed).length;
     const completedCount = customCompletedCount;
     const totalCount = customHabits.length;
-    const completionRate = completedCount / totalCount;
+    const completionRate = totalCount > 0 ? completedCount / totalCount : 0;
 
     setState(prevState => {
       let newCharacter = { ...prevState.character };
@@ -164,11 +145,11 @@ export function useHabits() {
         character: newCharacter,
       };
     });
-  }, [setState, customHabits, authState.user]);
+  }, [authState.user]);
 
-  const updateDailyStats = useCallback(() => {
+  // Функція для оновлення статистики (викликається ззовні)
+  const updateDailyStats = useCallback((customHabits: any[]) => {
     const today = new Date().toDateString();
-    // Use only custom habits for daily stats
     const customCompletedCount = customHabits.filter(h => h.completed).length;
     const completedCount = customCompletedCount;
     const totalCount = customHabits.length;
@@ -189,19 +170,14 @@ export function useHabits() {
     AsyncStorage.setItem(STATS_KEY, JSON.stringify(stats))
       .then(() => console.log('✅ Stats saved to storage'))
       .catch(error => console.error('❌ Error saving stats:', error));
-  }, [setState, customHabits]);
-
-  // Оновлюємо статистику коли змінюються кастомні звички
-  useEffect(() => {
-    updateCharacterProgress();
-    updateDailyStats();
-  }, [customHabits, updateCharacterProgress, updateDailyStats]);
+  }, []);
 
   return {
-    habits: customHabits, // Повертаємо тільки кастомні звички
     character: state.character,
     dailyStats: state.dailyStats,
     totalCompletions: state.totalCompletions,
-    loading: false, // Завжди false, оскільки стан завантажується асинхронно
+    loading: false,
+    updateCharacterProgress,
+    updateDailyStats,
   };
 }

@@ -2,7 +2,7 @@ import { defaultAchievements } from '@/constants/achievements';
 import { Achievement } from '@/types/achievement';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { createGlobalState } from './use-global-state';
 
 const ACHIEVEMENTS_KEY = '@riseup_achievements';
@@ -21,8 +21,12 @@ const useGlobalAchievementsState = createGlobalState(defaultState);
 
 export function useAchievements() {
   const [state, setState] = useGlobalAchievementsState();
+  const isInitialized = useRef(false);
 
   useEffect(() => {
+    if (isInitialized.current) return;
+    isInitialized.current = true;
+    
     let isMounted = true;
     
     const loadAchievements = async () => {
@@ -46,7 +50,7 @@ export function useAchievements() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, []); // Порожній масив залежностей
 
   const saveAchievements = useCallback(async (achievements: Achievement[]) => {
     try {

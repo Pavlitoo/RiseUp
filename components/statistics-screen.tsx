@@ -1,10 +1,12 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useBonuses } from '@/hooks/use-bonuses';
+import { useCustomHabits } from '@/hooks/use-custom-habits'; // Додаємо імпорт
 import { useHabits } from '@/hooks/use-habits';
 import { useStatistics } from '@/hooks/use-statistics';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useTranslations } from '@/hooks/use-translations';
+import { CustomHabit } from '@/types/custom-habit'; // Додаємо імпорт типу
 import { Image } from 'expo-image';
 import React from 'react';
 import { Dimensions, ScrollView, StyleSheet, View } from 'react-native';
@@ -16,9 +18,10 @@ const chartWidth = screenWidth - 40;
 const chartHeight = 200;
 
 export function StatisticsScreen() {
-  const { habits, character } = useHabits();
+  const { character } = useHabits();
+  const { habits } = useCustomHabits();
   const { statistics, getDailyDataForChart } = useStatistics();
-  const { getUnclaimedCount } = useBonuses();
+  const { getUnclaimedCount: getUnclaimedCountFn } = useBonuses();
   const t = useTranslations();
   const backgroundColor = useThemeColor({}, 'background');
   const cardBackground = useThemeColor({}, 'cardBackground');
@@ -27,10 +30,10 @@ export function StatisticsScreen() {
   const secondaryColor = useThemeColor({}, 'secondary');
 
   // Get real statistics
-  const completedToday = habits.filter(h => h.completed).length;
+  const completedToday = habits.filter((h: CustomHabit) => h.completed).length; // Додаємо тип
   const totalHabits = habits.length;
   const completionRate = totalHabits > 0 ? (completedToday / totalHabits) * 100 : 0;
-  const unclaimedBonuses = getUnclaimedCount();
+  const unclaimedBonuses = getUnclaimedCountFn;
 
   // Get real weekly data for chart
   const weeklyData = getDailyDataForChart(7);
@@ -198,22 +201,22 @@ export function StatisticsScreen() {
             <Image source={require('@/assets/images/target.png')} style={styles.titleIcon} /> Розбивка по звичках
           </ThemedText>
           
-          {habits.map((habit, index) => (
+          {habits.map((habit: CustomHabit, index: number) => ( // Додаємо типи
             <Animated.View
               key={habit.id}
-              entering={FadeIn.delay(800 + index * 100).duration(600)}
+              entering={FadeIn.delay(800 + (index * 100)).duration(600)}
               style={styles.habitRow}
             >
               <View style={styles.habitInfo}>
                 <ThemedText style={styles.habitIcon}>
-                  {habit.id === '1' ? '💧' : habit.id === '2' ? '💪' : habit.id === '3' ? '🧘' : '📚'}
+                  {habit.icon || '📚'}
                 </ThemedText>
                 <View style={styles.habitDetails}>
                   <ThemedText type="defaultSemiBold" style={styles.habitName}>
                     {habit.name}
                   </ThemedText>
                   <ThemedText style={styles.habitStreak}>
-                    Серія: {habit.streak} днів
+                    Серія: {habit.streak || 0} днів
                   </ThemedText>
                 </View>
               </View>

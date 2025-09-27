@@ -18,6 +18,9 @@ export const APP_CONFIG = {
     ANALYTICS: true,
     INSIGHTS: true,
     BACKUP_RESTORE: true,
+    BONUSES_SYSTEM: true,
+    DAILY_BONUSES: true,
+    STREAK_BONUSES: true,
     PERFORMANCE_MONITOR: __DEV__,
     PUSH_NOTIFICATIONS: false, // Will be enabled in future versions
     SOCIAL_FEATURES: false,

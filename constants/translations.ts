@@ -133,6 +133,17 @@ export const translations = {
     emailHint: 'Введіть дійсну електронну адресу',
     passwordHint: 'Мінімум 6 символів',
     nameHint: 'Тільки літери та пробіли',
+    
+    // Shop
+    shop: 'Магазин',
+    coins: 'Монети',
+    buy: 'Купити',
+    purchased: 'Куплено',
+    notEnoughCoins: 'Недостатньо монет',
+    purchaseSuccessful: 'Покупка успішна',
+    characterUpgrades: 'Покращення персонажа',
+    themes: 'Теми',
+    specialEffects: 'Спеціальні ефекти',
   },
   en: {
     // Auth
@@ -266,6 +277,17 @@ export const translations = {
     emailHint: 'Enter a valid email address',
     passwordHint: 'Minimum 6 characters',
     nameHint: 'Only letters and spaces',
+    
+    // Shop
+    shop: 'Shop',
+    coins: 'Coins',
+    buy: 'Buy',
+    purchased: 'Purchased',
+    notEnoughCoins: 'Not enough coins',
+    purchaseSuccessful: 'Purchase successful',
+    characterUpgrades: 'Character Upgrades',
+    themes: 'Themes',
+    specialEffects: 'Special Effects',
   },
 };
 

@@ -65,7 +65,7 @@ export function Character({ character }: CharacterProps) {
         true
       );
     }
-  }, [character.health, character.maxHealth]);
+  }, [character.health, character.maxHealth, bounceAnimation, breathAnimation, blinkAnimation, pulseAnimation]);
 
   const animatedCharacterStyle = useAnimatedStyle(() => {
     return {

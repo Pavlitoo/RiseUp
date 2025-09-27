@@ -4,18 +4,20 @@ import { ScrollView, StyleSheet } from 'react-native';
 
 import { AchievementModal } from '@/components/achievement-modal';
 import { BonusModal } from '@/components/bonus-modal';
+import { CoinsDisplay } from '@/components/coins-display';
 import { CustomHabitCard } from '@/components/custom-habits/custom-habit-card-component';
 import { DailyStatsComponent } from '@/components/daily-stats';
-import { MotivationalQuote } from '@/components/motivational-quote';
+import { ShopModal } from '@/components/shop-modal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAchievements } from '@/hooks/use-achievements';
 import { useBonuses } from '@/hooks/use-bonuses';
+import { useCoins } from '@/hooks/use-coins';
 import { useCustomHabits } from '@/hooks/use-custom-habits';
 import { useHabits } from '@/hooks/use-habits';
 import { useStatistics } from '@/hooks/use-statistics';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { useLanguageKey, useTranslations } from '@/hooks/use-translations';
+import { useTranslations } from '@/hooks/use-translations';
 import { TouchableOpacity, View } from 'react-native';
 import Animated, {
   FadeIn,
@@ -27,20 +29,21 @@ import Animated, {
 
 export default function HomeScreen() {
   const { character, dailyStats } = useHabits();
-  const { habits: customHabits, getTotalProgress, toggleHabit } = useCustomHabits();
+  const { habits: customHabits, getTotalProgress, toggleHabit, loading } = useCustomHabits();
   const { newUnlocked, clearNewUnlocked } = useAchievements();
-  const { getUnclaimedCount, getAvailableBonuses, dailyBonus } = useBonuses();
+  const { getUnclaimedCount, dailyBonus } = useBonuses();
+  const { coins } = useCoins();
   const { statistics } = useStatistics();
   const t = useTranslations();
   const backgroundColor = useThemeColor({}, 'background');
   const primaryColor = useThemeColor({}, 'primary');
-  const languageKey = useLanguageKey();
   const [showAchievement, setShowAchievement] = useState(false);
   const [showBonuses, setShowBonuses] = useState(false);
+  const [showShop, setShowShop] = useState(false);
 
   const headerOpacity = useSharedValue(0);
   
-  const unclaimedBonuses = getUnclaimedCount();
+  const unclaimedBonuses = getUnclaimedCount;
   const hasDailyBonus = dailyBonus.available && !dailyBonus.claimed;
   const totalAvailableBonuses = unclaimedBonuses + (hasDailyBonus ? 1 : 0);
   
@@ -68,10 +71,19 @@ export default function HomeScreen() {
     setShowBonuses(false);
   };
 
+  const handleShowShop = () => {
+    setShowShop(true);
+  };
+
+  const handleCloseShop = () => {
+    setShowShop(false);
+  };
+
   React.useEffect(() => {
-    // Завжди показуємо анімацію, оскільки loading більше немає
-    headerOpacity.value = withTiming(1, { duration: 1000 });
-  }, []);
+    if (!loading) {
+      headerOpacity.value = withTiming(1, { duration: 1000 });
+    }
+  }, [loading, headerOpacity]);
 
   const animatedHeaderStyle = useAnimatedStyle(() => {
     return {
@@ -87,7 +99,7 @@ export default function HomeScreen() {
   // Якщо немає звичок, показуємо привітальний екран
   if (customHabits.length === 0) {
     return (
-      <ScrollView key={languageKey} style={[styles.container, { backgroundColor }]}>
+      <ScrollView style={[styles.container, { backgroundColor }]}>
         <ThemedView style={styles.content}>
           <Animated.View style={[styles.welcomeContainer, animatedHeaderStyle]}>
             <ThemedText style={styles.welcomeIcon}>🌟</ThemedText>
@@ -107,6 +119,11 @@ export default function HomeScreen() {
             </Link>
             
             <View style={styles.featuresPreview}>
+              <CoinsDisplay 
+                coins={coins} 
+                onPress={handleShowShop}
+              />
+              
               <ThemedText type="subtitle" style={styles.featuresTitle}>
                 Що вас чекає:
               </ThemedText>
@@ -135,7 +152,7 @@ export default function HomeScreen() {
     );
   }
   return (
-    <ScrollView key={languageKey} style={[styles.container, { backgroundColor }]}>
+    <ScrollView style={[styles.container, { backgroundColor }]}>
       <ThemedView style={styles.content}>
         <Animated.View style={[styles.header, animatedHeaderStyle]}>
           <View style={styles.headerTop}>
@@ -149,6 +166,13 @@ export default function HomeScreen() {
             </View>
             
             {totalAvailableBonuses > 0 && (
+              <View style={styles.headerActions}>
+                <CoinsDisplay 
+                  coins={coins} 
+                  onPress={handleShowShop}
+                  compact
+                />
+                
               <TouchableOpacity
                 style={[styles.bonusButton, { backgroundColor: primaryColor }]}
                 onPress={handleShowBonuses}
@@ -157,6 +181,7 @@ export default function HomeScreen() {
                   🎁 {totalAvailableBonuses}
                 </ThemedText>
               </TouchableOpacity>
+              </View>
             )}
           </View>
           
@@ -192,13 +217,9 @@ export default function HomeScreen() {
           <DailyStatsComponent stats={dailyStats} />
         </Animated.View>
 
-        <Animated.View entering={FadeIn.delay(300).duration(800)}>
-          <MotivationalQuote />
-        </Animated.View>
-
         <Animated.View 
           style={styles.habitsSection}
-          entering={SlideInDown.delay(400).duration(800)}
+          entering={SlideInDown.delay(300).duration(800)}
         >
           <ThemedText type="subtitle" style={styles.sectionTitle}>
             {t.myHabits}
@@ -207,7 +228,7 @@ export default function HomeScreen() {
           {customHabits.slice(0, 3).map((habit, index) => (
             <Animated.View
               key={habit.id}
-              entering={FadeIn.delay(600 + index * 100).duration(600)}
+              entering={FadeIn.delay(500 + (index * 100)).duration(600)}
             >
               <CustomHabitCard
                 habit={habit}
@@ -219,7 +240,7 @@ export default function HomeScreen() {
           ))}
           
           {customHabits.length > 3 && (
-            <Animated.View entering={FadeIn.delay(800).duration(600)}>
+            <Animated.View entering={FadeIn.delay(700).duration(600)}>
               <ThemedText style={styles.moreHabitsText}>
                 ... та ще {customHabits.length - 3} звичок
               </ThemedText>
@@ -227,7 +248,7 @@ export default function HomeScreen() {
           )}
           
           {customHabits.length > 0 && (
-            <Animated.View entering={FadeIn.delay(800).duration(600)}>
+            <Animated.View entering={FadeIn.delay(700).duration(600)}>
               <Link href="/my-habits" style={styles.customHabitsLink}>
                 <ThemedView style={[styles.customHabitsButton, { backgroundColor: primaryColor }]}>
                   <ThemedText style={[styles.customHabitsText, { color: 'white' }]}>
@@ -239,7 +260,7 @@ export default function HomeScreen() {
           )}
         </Animated.View>
 
-        <Animated.View entering={FadeIn.delay(800).duration(600)}>
+        <Animated.View entering={FadeIn.delay(600).duration(600)}>
           <Link href="/progress" style={styles.progressButton}>
             <ThemedView style={[styles.button, { backgroundColor: primaryColor }]}>
               <ThemedText style={[styles.buttonText, { color: 'white' }]}>
@@ -259,6 +280,11 @@ export default function HomeScreen() {
       <BonusModal
         visible={showBonuses}
         onClose={handleCloseBonuses}
+      />
+      
+      <ShopModal
+        visible={showShop}
+        onClose={handleCloseShop}
       />
     </ScrollView>
   );
@@ -334,6 +360,11 @@ const styles = StyleSheet.create({
   },
   headerInfo: {
     flex: 1,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   title: {
     marginBottom: 8,

@@ -4,17 +4,16 @@ import { InputField } from '@/components/ui/input-field';
 import { validateName } from '@/constants/validation';
 import { useAuth } from '@/hooks/use-auth';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { useLanguageChanger, useLanguageKey, useTranslations } from '@/hooks/use-translations';
+import { useLanguageChanger, useTranslations } from '@/hooks/use-translations';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
 import { Alert, Image, ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
 
 export function ProfileScreen() {
-  const { authState, logout, updateProfile } = useAuth();
+  const { authState, logout, updateProfile, updateSettings } = useAuth();
   const changeLanguage = useLanguageChanger();
   const t = useTranslations();
-  const languageKey = useLanguageKey();
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(authState.user?.name || '');
   const [nameError, setNameError] = useState<string | undefined>();
@@ -81,7 +80,8 @@ export function ProfileScreen() {
     // Show immediate feedback
     console.log(`🎵 Music ${value ? 'enabled' : 'disabled'}`);
     
-    // Тут можна додати логіку для музики
+    // Оновлюємо налаштування музики
+    updateSettings({ musicEnabled: value });
   };
 
   const handleLanguageChange = async (language: 'uk' | 'en') => {
@@ -90,14 +90,18 @@ export function ProfileScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     
-    // Змінюємо мову через новий хук
+    // Очищуємо кеш перекладів при зміні мови
+    const { translationService } = await import('@/services/TranslationService');
+    await translationService.clearCache();
+    
+    // Змінюємо мову
     await changeLanguage(language);
   };
 
   if (!authState.user) return null;
 
   return (
-    <ScrollView key={languageKey} style={[styles.container, { backgroundColor }]}>
+    <ScrollView style={[styles.container, { backgroundColor }]}>
       <ThemedView style={styles.content}>
         <View style={styles.header}>
           <ThemedText type="title" style={styles.title}>

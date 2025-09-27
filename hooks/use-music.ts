@@ -1,6 +1,6 @@
 import { useAuth } from '@/hooks/use-auth';
 import { Audio } from 'expo-av';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
 export function useMusic() {
@@ -8,8 +8,12 @@ export function useMusic() {
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const isInitialized = useRef(false);
 
   useEffect(() => {
+    if (isInitialized.current) return;
+    isInitialized.current = true;
+    
     loadSound();
     
     // Слухаємо зміни стану додатку
@@ -33,15 +37,17 @@ export function useMusic() {
       subscription?.remove();
       cleanup();
     };
-  }, []);
+  }, []); // Порожній масив залежностей
 
-  // Реагуємо на зміни налаштувань музики МИТТЄВО
+  // Реагуємо на зміни налаштувань музики
   useEffect(() => {
+    if (!isLoaded || !sound) return;
+    
     console.log('🎵 Music setting changed:', authState.settings.musicEnabled);
     
-    if (authState.settings.musicEnabled && !isPlaying && isLoaded && sound) {
+    if (authState.settings.musicEnabled && !isPlaying) {
       playSound();
-    } else if (!authState.settings.musicEnabled && isPlaying && isLoaded && sound) {
+    } else if (!authState.settings.musicEnabled && isPlaying) {
       pauseSound();
     }
   }, [authState.settings.musicEnabled, isLoaded, sound, isPlaying]);
@@ -62,10 +68,8 @@ export function useMusic() {
       // Set up audio mode
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
-        staysActiveInBackground: false, // Змінено на false
+        staysActiveInBackground: false,
         playsInSilentModeIOS: true,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
       });
 
       // Load the background music file
@@ -118,7 +122,7 @@ export function useMusic() {
         setIsPlaying(true);
         console.log('🎵 Music started');
       } catch (error) {
-        console.error('Error playing sound:', error);
+        console.error('Error playing sound:', (error as Error).message);
       }
     }
   };
@@ -130,7 +134,7 @@ export function useMusic() {
         setIsPlaying(false);
         console.log('🔇 Music stopped');
       } catch (error) {
-        console.error('Error pausing sound:', error);
+        console.error('Error pausing sound:', (error as Error).message);
       }
     }
   };

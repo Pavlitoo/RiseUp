@@ -45,7 +45,7 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
 
   React.useEffect(() => {
     formOpacity.value = withTiming(1, { duration: 800 });
-  }, []);
+  }, [formOpacity]);
 
   const animatedButtonStyle = useAnimatedStyle(() => {
     return {

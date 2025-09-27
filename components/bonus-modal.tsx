@@ -7,10 +7,10 @@ import * as Haptics from 'expo-haptics';
 import React, { useState } from 'react';
 import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import Animated, {
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-    withTiming
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming
 } from 'react-native-reanimated';
 
 interface BonusModalProps {
@@ -67,7 +67,7 @@ export function BonusModal({ visible, onClose }: BonusModalProps) {
     }
     
     const bonus = availableBonuses.find(b => b.id === bonusId);
-    if (bonus?.reward.coins) {
+    if (bonus?.reward.coins && bonus.reward.coins > 0) {
       addCoins(bonus.reward.coins);
     }
     
@@ -180,25 +180,24 @@ export function BonusModal({ visible, onClose }: BonusModalProps) {
                 
                 <View style={styles.rewardContainer}>
                   <View style={styles.rewardItem}>
-                    <ThemedText style={styles.rewardIcon}>⭐</ThemedText>
+                    <ThemedText style={styles.rewardIcon}>🪙</ThemedText>
                     <ThemedText style={styles.rewardText}>
-                      +{50 * dailyBonus.multiplier} досвіду
+                      +{Math.floor(50 * dailyBonus.multiplier)} монет
                     </ThemedText>
                   </View>
                   <View style={styles.rewardItem}>
-                    <ThemedText style={styles.rewardIcon}>🪙</ThemedText>
+                    <ThemedText style={styles.rewardIcon}>⭐</ThemedText>
                     <ThemedText style={styles.rewardText}>
-                      +{50 * dailyBonus.multiplier} монет
+                      +{Math.floor(50 * dailyBonus.multiplier)} досвіду
                     </ThemedText>
                   </View>
                 </View>
-                
                 <TouchableOpacity
                   style={[styles.claimButton, { backgroundColor: warningColor }]}
                   onPress={handleClaimDailyBonus}
                 >
                   <ThemedText style={[styles.claimButtonText, { color: 'white' }]}>
-                    ✨ Отримати бонус
+                    Отримати бонус
                   </ThemedText>
                 </TouchableOpacity>
               </View>
@@ -262,7 +261,7 @@ export function BonusModal({ visible, onClose }: BonusModalProps) {
                         </ThemedText>
                       </View>
                     )}
-                    {bonus.reward.coins && (
+                    {bonus.reward.coins && bonus.reward.coins > 0 && (
                       <View style={styles.rewardItem}>
                         <ThemedText style={styles.rewardIcon}>🪙</ThemedText>
                         <ThemedText style={styles.rewardText}>

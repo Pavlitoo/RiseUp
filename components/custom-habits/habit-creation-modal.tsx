@@ -48,7 +48,7 @@ export function HabitCreationModal({ visible, onClose, editingHabit }: HabitCrea
     category: editingHabit?.category || 'other',
     priority: editingHabit?.priority || 'medium' as 'low' | 'medium' | 'high',
     reminderTime: editingHabit?.reminderTime || '',
-    deadline: editingHabit?.deadline || '',
+    deadline: editingHabit?.deadline || undefined,
   });
 
   const scale = useSharedValue(0);

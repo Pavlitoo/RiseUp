@@ -1,5 +1,7 @@
+import { firebaseService } from '@/services/FirebaseService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import { useAuth } from './use-auth';
 import { createGlobalState } from './use-global-state';
 
 const COINS_KEY = '@riseup_coins';
@@ -21,6 +23,7 @@ interface CoinsState {
   totalEarned: number;
   purchases: Purchase[];
 }
+
 
 const defaultPurchases: Purchase[] = [
   {
@@ -75,19 +78,40 @@ const useGlobalCoinsState = createGlobalState(defaultState);
 
 export function useCoins() {
   const [state, setState] = useGlobalCoinsState();
+  const { authState } = useAuth();
+  const isInitialized = useRef(false);
+  const currentUserId = useRef<string | null>(null);
 
   useEffect(() => {
+    if (!authState.user?.id) return;
+    if (isInitialized.current) return;
+    
+    isInitialized.current = true;
+    
     let isMounted = true;
     
     const loadCoins = async () => {
       try {
-        const [coinsData, purchasesData] = await Promise.all([
-          AsyncStorage.getItem(COINS_KEY),
-          AsyncStorage.getItem(PURCHASES_KEY),
-        ]);
+        let coins = { coins: 0, totalEarned: 0 };
+        let purchases = defaultPurchases;
+        
+        try {
+          // Спробуємо завантажити з Firebase
+          const firebaseCoins = await firebaseService.getCoins(authState.user!.id);
+          if (firebaseCoins) {
+            coins = firebaseCoins;
+            purchases = firebaseCoins.purchases || defaultPurchases;
+          }
+        } catch (error) {
+          console.log('Firebase load failed, using local data:', error);
+          const [coinsData, purchasesData] = await Promise.all([
+            AsyncStorage.getItem(COINS_KEY),
+            AsyncStorage.getItem(PURCHASES_KEY),
+          ]);
 
-        const coins = coinsData ? JSON.parse(coinsData) : { coins: 0, totalEarned: 0 };
-        const purchases = purchasesData ? JSON.parse(purchasesData) : defaultPurchases;
+          coins = coinsData ? JSON.parse(coinsData) : { coins: 0, totalEarned: 0 };
+          purchases = purchasesData ? JSON.parse(purchasesData) : defaultPurchases;
+        }
 
         if (isMounted) {
           setState(prev => ({
@@ -107,23 +131,41 @@ export function useCoins() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, []); // Порожній масив залежностей
 
   const saveCoins = useCallback(async (coins: number, totalEarned: number) => {
     try {
-      await AsyncStorage.setItem(COINS_KEY, JSON.stringify({ coins, totalEarned }));
+      const coinsData = { coins, totalEarned };
+      
+      const savePromises = [
+        AsyncStorage.setItem(COINS_KEY, JSON.stringify(coinsData))
+      ];
+      
+      if (authState.user?.id) {
+        savePromises.push(firebaseService.saveCoins(authState.user.id, coinsData));
+      }
+      
+      await Promise.all(savePromises);
     } catch (error) {
       console.error('Error saving coins:', error);
     }
-  }, []);
+  }, [authState.user]);
 
   const savePurchases = useCallback(async (purchases: Purchase[]) => {
     try {
-      await AsyncStorage.setItem(PURCHASES_KEY, JSON.stringify(purchases));
+      const savePromises = [
+        AsyncStorage.setItem(PURCHASES_KEY, JSON.stringify(purchases))
+      ];
+      
+      if (authState.user?.id) {
+        savePromises.push(firebaseService.savePurchases(authState.user.id, purchases));
+      }
+      
+      await Promise.all(savePromises);
     } catch (error) {
       console.error('Error saving purchases:', error);
     }
-  }, []);
+  }, [authState.user]);
 
   const addCoins = useCallback((amount: number) => {
     setState(prev => {

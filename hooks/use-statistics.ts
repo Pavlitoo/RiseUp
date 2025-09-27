@@ -1,6 +1,6 @@
 import { firebaseService } from '@/services/FirebaseService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useAuth } from './use-auth';
 import { createGlobalState } from './use-global-state';
 
@@ -73,9 +73,14 @@ const useGlobalStatisticsState = createGlobalState(defaultState);
 export function useStatistics() {
   const [state, setState] = useGlobalStatisticsState();
   const { authState } = useAuth();
+  const isInitialized = useRef(false);
+  const currentUserId = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!authState.user) return;
+    if (!authState.user?.id) return;
+    if (isInitialized.current) return;
+    
+    isInitialized.current = true;
     
     let isMounted = true;
     
@@ -121,7 +126,7 @@ export function useStatistics() {
     return () => {
       isMounted = false;
     };
-  }, [authState.user]);
+  }, []); // Порожній масив залежностей
 
   const saveStatistics = useCallback(async (stats: OverallStats, history: DailyRecord[]) => {
     try {

@@ -12,9 +12,10 @@ export interface CustomHabit {
   lastCompleted?: string;
   createdAt: string;
   updatedAt: string;
+  // Deadline functionality
+  deadline?: string; // ISO date string for habit deadline
   // Time-based settings
   reminderTime?: string; // HH:MM format
-  deadline?: string; // ISO date string for one-time habits
   // Progress tracking
   totalCompletions: number;
   bestStreak: number;

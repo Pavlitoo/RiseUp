@@ -1,22 +1,23 @@
 import { translations } from '@/constants/translations';
 import { useAuth } from '@/hooks/use-auth';
-import * as Localization from 'expo-localization';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
+import { createGlobalState } from './use-global-state';
+
+// Глобальний стан для мови
+const useGlobalLanguageState = createGlobalState<'uk' | 'en'>('uk');
 
 // Функція для автоматичного визначення мови
 const getDeviceLanguage = (): 'uk' | 'en' => {
-  const deviceLocale = Localization.getLocales()[0]?.languageTag || 'en';
-  if (deviceLocale.startsWith('uk') || deviceLocale.startsWith('ru')) {
-    return 'uk';
-  }
-  return 'en';
+  return 'uk'; // За замовчуванням українська
 };
 
 // Кеш для перекладів
 const translationCache = new Map<string, any>();
+
 export function useTranslations() {
   const { authState } = useAuth();
-  const currentLanguage = authState.settings.language || getDeviceLanguage();
+  const [globalLanguage] = useGlobalLanguageState();
+  const currentLanguage = authState.settings.language || globalLanguage || getDeviceLanguage();
   
   // Мемоізуємо переклади для кращої продуктивності
   const currentTranslations = useMemo(() => {
@@ -35,7 +36,6 @@ export function useTranslations() {
   return currentTranslations;
 }
 
-// Функція для отримання перекладу з ключем
 export function useTranslation() {
   const translations = useTranslations();
   
@@ -54,34 +54,36 @@ export function useTranslation() {
   
   return t;
 }
-// Hook to force component re-render when language changes
+
+// Hook для примусового оновлення компонентів при зміні мови
 export function useLanguageKey() {
   const { authState } = useAuth();
-  const [key, setKey] = useState(0);
-  
-  useEffect(() => {
-    setKey(prev => prev + 1);
-  }, [authState.settings.language]);
-  
-  return key;
+  const [globalLanguage] = useGlobalLanguageState();
+  return `${authState.settings.language || globalLanguage}-${Date.now()}`;
 }
 
 // Hook для отримання поточної мови
 export function useCurrentLanguage() {
   const { authState } = useAuth();
-  return authState.settings.language || getDeviceLanguage();
+  const [globalLanguage] = useGlobalLanguageState();
+  return authState.settings.language || globalLanguage || getDeviceLanguage();
 }
 
 // Hook для зміни мови
 export function useLanguageChanger() {
   const { updateSettings } = useAuth();
+  const [, setGlobalLanguage] = useGlobalLanguageState();
   
   const changeLanguage = useCallback(async (language: 'uk' | 'en') => {
     // Очищуємо кеш при зміні мови
     translationCache.clear();
     
+    // Оновлюємо глобальний стан мови
+    setGlobalLanguage(language);
+    
+    // Оновлюємо налаштування користувача
     await updateSettings({ language });
-  }, [updateSettings]);
+  }, [updateSettings, setGlobalLanguage]);
   
   return changeLanguage;
 }

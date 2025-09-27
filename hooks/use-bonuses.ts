@@ -1,6 +1,6 @@
 import { firebaseService } from '@/services/FirebaseService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from './use-auth';
 import { createGlobalState } from './use-global-state';
 
@@ -11,279 +11,359 @@ export interface Bonus {
   name: string;
   description: string;
   icon: string;
-  type: 'daily' | 'weekly' | 'streak' | 'achievement';
-  requirement: number;
+  type: 'daily' | 'weekly' | 'streak' | 'achievement' | 'special';
   reward: {
     experience: number;
     healthBoost?: number;
     specialEffect?: string;
     coins?: number;
-    characterUpgrade?: string;
   };
-  unlocked: boolean;
+  requirement?: {
+    type: 'streak' | 'completion' | 'perfect_days' | 'level';
+    value: number;
+  };
   claimed: boolean;
   unlockedAt?: string;
   claimedAt?: string;
+  expiresAt?: string;
 }
 
 export interface DailyBonus {
-  date: string;
   available: boolean;
   claimed: boolean;
   streak: number;
   multiplier: number;
+  lastClaimedDate?: string;
+  nextAvailableDate?: string;
 }
 
 interface BonusesState {
   bonuses: Bonus[];
   dailyBonus: DailyBonus;
-  weeklyChallenge: {
-    active: boolean;
-    target: number;
-    progress: number;
-    reward: number;
-    endsAt: string;
-  };
+  loading: boolean;
+  initialized: boolean;
+  lastLoadedUserId: string | null;
 }
+
+const defaultDailyBonus: DailyBonus = {
+  available: true,
+  claimed: false,
+  streak: 1,
+  multiplier: 1,
+};
 
 const defaultBonuses: Bonus[] = [
   {
-    id: 'first_habit',
-    name: 'Перша звичка',
-    description: 'Виконай свою першу звичку',
-    icon: '🌟',
+    id: 'first_habit_completion',
+    name: 'Перший крок',
+    description: 'Виконайте свою першу звичку',
+    icon: '🎯',
     type: 'achievement',
-    requirement: 1,
-    reward: { experience: 50, coins: 10 },
-    unlocked: false,
+    reward: {
+      experience: 50,
+      coins: 25,
+    },
+    requirement: {
+      type: 'completion',
+      value: 1,
+    },
+    claimed: false,
+  },
+  {
+    id: 'streak_3_days',
+    name: 'Три дні поспіль',
+    description: 'Підтримуйте серію 3 дні',
+    icon: '🔥',
+    type: 'streak',
+    reward: {
+      experience: 100,
+      coins: 50,
+      healthBoost: 20,
+    },
+    requirement: {
+      type: 'streak',
+      value: 3,
+    },
+    claimed: false,
+  },
+  {
+    id: 'streak_7_days',
+    name: 'Тиждень дисципліни',
+    description: 'Підтримуйте серію 7 днів',
+    icon: '💪',
+    type: 'streak',
+    reward: {
+      experience: 200,
+      coins: 100,
+      healthBoost: 30,
+      specialEffect: 'golden_aura',
+    },
+    requirement: {
+      type: 'streak',
+      value: 7,
+    },
     claimed: false,
   },
   {
     id: 'perfect_week',
     name: 'Ідеальний тиждень',
-    description: 'Виконай всі звички протягом тижня',
-    icon: '👑',
+    description: 'Виконайте всі звички протягом тижня',
+    icon: '⭐',
     type: 'weekly',
-    requirement: 7,
-    reward: { experience: 200, healthBoost: 20, coins: 50, characterUpgrade: 'golden_aura' },
-    unlocked: false,
+    reward: {
+      experience: 300,
+      coins: 150,
+      specialEffect: 'rainbow_effect',
+    },
+    requirement: {
+      type: 'perfect_days',
+      value: 7,
+    },
     claimed: false,
   },
   {
-    id: 'streak_master',
-    name: 'Майстер серій',
-    description: 'Досягни серії в 30 днів',
-    icon: '🔥',
-    type: 'streak',
-    requirement: 30,
-    reward: { experience: 500, coins: 100, specialEffect: 'fire_aura', characterUpgrade: 'fire_master' },
-    unlocked: false,
-    claimed: false,
-  },
-  {
-    id: 'early_bird_bonus',
-    name: 'Рання пташка',
-    description: 'Виконай звичку до 7:00 ранку',
-    icon: '🌅',
-    type: 'daily',
-    requirement: 1,
-    reward: { experience: 30, healthBoost: 5, coins: 5 },
-    unlocked: false,
-    claimed: false,
-  },
-  {
-    id: 'consistency_king',
-    name: 'Король постійності',
-    description: 'Виконай звички 100 днів',
-    icon: '💎',
-    type: 'achievement',
-    requirement: 100,
-    reward: { experience: 1000, coins: 200, specialEffect: 'diamond_aura', characterUpgrade: 'diamond_master' },
-    unlocked: false,
-    claimed: false,
-  },
-  {
-    id: 'habit_collector',
-    name: 'Колекціонер звичок',
-    description: 'Виконай кожну звичку мінімум 10 разів',
+    id: 'level_5_bonus',
+    name: 'П\'ятий рівень',
+    description: 'Досягніть 5 рівня',
     icon: '🏆',
     type: 'achievement',
-    requirement: 10,
-    reward: { experience: 300, coins: 75, characterUpgrade: 'collector_badge' },
-    unlocked: false,
+    reward: {
+      experience: 250,
+      coins: 200,
+      healthBoost: 50,
+    },
+    requirement: {
+      type: 'level',
+      value: 5,
+    },
     claimed: false,
   },
   {
-    id: 'weekend_warrior',
-    name: 'Воїн вихідних',
-    description: 'Виконай всі звички у вихідні',
-    icon: '⚔️',
-    type: 'weekly',
-    requirement: 2,
-    reward: { experience: 150, coins: 30, healthBoost: 15 },
-    unlocked: false,
+    id: 'comeback_bonus',
+    name: 'Повернення',
+    description: 'Поверніться після перерви',
+    icon: '🌟',
+    type: 'special',
+    reward: {
+      experience: 150,
+      coins: 75,
+      healthBoost: 25,
+    },
     claimed: false,
   },
 ];
 
 const defaultState: BonusesState = {
-  bonuses: defaultBonuses,
-  dailyBonus: {
-    date: new Date().toISOString().split('T')[0],
-    available: true,
-    claimed: false,
-    streak: 0,
-    multiplier: 1,
-  },
-  weeklyChallenge: {
-    active: false,
-    target: 0,
-    progress: 0,
-    reward: 0,
-    endsAt: '',
-  },
+  bonuses: [...defaultBonuses],
+  dailyBonus: { ...defaultDailyBonus },
+  loading: false,
+  initialized: false,
+  lastLoadedUserId: null,
 };
 
 const useGlobalBonusesState = createGlobalState(defaultState);
 
+// Утилітні функції поза компонентом
+const checkDailyBonusAvailability = (dailyBonus: DailyBonus): DailyBonus => {
+  const today = new Date().toDateString();
+  const lastClaimedDate = dailyBonus?.lastClaimedDate;
+  
+  if (!lastClaimedDate) {
+    return {
+      ...dailyBonus,
+      available: true,
+      claimed: false,
+    };
+  }
+
+  const lastClaimed = new Date(lastClaimedDate);
+  const todayDate = new Date(today);
+  const diffTime = todayDate.getTime() - lastClaimed.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays >= 1) {
+    const newStreak = diffDays === 1 ? (dailyBonus.streak || 1) + 1 : 1;
+    const newMultiplier = Math.min(Math.floor(newStreak / 7) + 1, 5);
+    
+    return {
+      ...dailyBonus,
+      available: true,
+      claimed: false,
+      streak: newStreak,
+      multiplier: newMultiplier,
+    };
+  }
+
+  return dailyBonus;
+};
+
+const ensureBonusesArray = (bonuses: any): Bonus[] => {
+  return Array.isArray(bonuses) && bonuses.length > 0 ? bonuses : [...defaultBonuses];
+};
+
+const ensureDailyBonus = (dailyBonus: any): DailyBonus => {
+  return dailyBonus && typeof dailyBonus === 'object' ? { ...defaultDailyBonus, ...dailyBonus } : { ...defaultDailyBonus };
+};
+
 export function useBonuses() {
   const [state, setState] = useGlobalBonusesState();
   const { authState } = useAuth();
+  const loadingRef = useRef(false);
+  const mountedRef = useRef(true);
 
-  useEffect(() => {
-    if (!authState.user) return;
-    
-    let isMounted = true;
-    
-    const loadBonuses = async () => {
+  const currentUserId = authState.user?.id || null;
+
+  // Мемоізований обробник для збереження
+  const saveToStorage = useMemo(() => {
+    return async (bonuses: Bonus[], dailyBonus: DailyBonus, userId?: string) => {
       try {
-        // Try to load from Firebase first
-        let bonusesData = defaultState;
+        const safeBonuses = ensureBonusesArray(bonuses);
+        const safeDailyBonus = ensureDailyBonus(dailyBonus);
+        const data = { bonuses: safeBonuses, dailyBonus: safeDailyBonus };
         
-        try {
-          let firebaseBonuses = null;
-          if (authState.user) {
-            firebaseBonuses = await firebaseService.getBonuses(authState.user.id);
-          }
-          if (firebaseBonuses) {
-            bonusesData = firebaseBonuses;
-          }
-        } catch (error) {
-          console.log('Firebase load failed, using local data:', error);
-          const data = await AsyncStorage.getItem(BONUSES_KEY);
-          bonusesData = data ? JSON.parse(data) : defaultState;
-        }
-
-        if (isMounted) {
-          setState(bonusesData);
+        // Асинхронне збереження без очікування
+        AsyncStorage.setItem(BONUSES_KEY, JSON.stringify(data)).catch(console.error);
+        
+        if (userId) {
+          firebaseService.saveBonuses(userId, data).catch(console.error);
         }
       } catch (error) {
-        console.error('Error loading bonuses:', error);
+        console.error('Error saving bonuses:', error);
       }
     };
+  }, []);
 
-    loadBonuses();
-    
-    return () => {
-      isMounted = false;
-    };
-  }, [authState.user]);
+  // Основний useEffect для завантаження даних
+  useEffect(() => {
+    // Запобігання повторному завантаженню
+    if (loadingRef.current) return;
+    if (state.initialized) return;
 
-  const saveBonuses = useCallback(async (bonusesState: BonusesState) => {
-    try {
-      const savePromises = [
-        AsyncStorage.setItem(BONUSES_KEY, JSON.stringify(bonusesState))
-      ];
+    const loadData = async () => {
+      if (!mountedRef.current) return;
       
-      if (authState.user) {
-        savePromises.push(firebaseService.saveBonuses(authState.user.id, bonusesState));
-      }
+      loadingRef.current = true;
       
-      await Promise.all(savePromises);
-    } catch (error) {
-      console.error('Error saving bonuses:', error);
-    }
-  }, [authState.user]);
+      try {
+        setState(prev => ({ 
+          ...prev, 
+          loading: true,
+        }));
 
-  const checkBonuses = useCallback((data: {
-    totalCompletions?: number;
-    perfectDays?: number;
-    currentStreak?: number;
-    completedToday?: number;
-    currentTime?: Date;
-  }) => {
-    const { 
-      totalCompletions = 0, 
-      perfectDays = 0, 
-      currentStreak = 0, 
-      completedToday = 0,
-      currentTime = new Date() 
-    } = data;
+        let bonuses = [...defaultBonuses];
+        let dailyBonus = { ...defaultDailyBonus };
 
-    setState(prev => {
-      const newBonuses = prev.bonuses.map(bonus => {
-        if (bonus.unlocked) return bonus;
-
-        let shouldUnlock = false;
-
-        switch (bonus.type) {
-          case 'achievement':
-            if (bonus.id === 'first_habit' && totalCompletions >= 1) shouldUnlock = true;
-            if (bonus.id === 'consistency_king' && totalCompletions >= 100) shouldUnlock = true;
-            break;
-          case 'weekly':
-            if (bonus.id === 'perfect_week' && perfectDays >= 7) shouldUnlock = true;
-            break;
-          case 'streak':
-            if (bonus.id === 'streak_master' && currentStreak >= 30) shouldUnlock = true;
-            break;
-          case 'daily':
-            if (bonus.id === 'early_bird_bonus' && currentTime.getHours() < 7 && completedToday > 0) {
-              shouldUnlock = true;
+        if (currentUserId) {
+          try {
+            // Спробуємо завантажити з Firebase
+            const firebaseData = await firebaseService.getBonuses(currentUserId);
+            if (firebaseData) {
+              bonuses = ensureBonusesArray(firebaseData.bonuses);
+              dailyBonus = ensureDailyBonus(firebaseData.dailyBonus);
             }
-            break;
+          } catch (firebaseError) {
+            console.log('Firebase failed, trying local storage:', firebaseError);
+            
+            try {
+              // Fallback до AsyncStorage
+              const localData = await AsyncStorage.getItem(BONUSES_KEY);
+              if (localData) {
+                const parsed = JSON.parse(localData);
+                bonuses = ensureBonusesArray(parsed.bonuses);
+                dailyBonus = ensureDailyBonus(parsed.dailyBonus);
+              }
+            } catch (storageError) {
+              console.log('Local storage failed, using defaults:', storageError);
+            }
+          }
         }
 
-        if (shouldUnlock) {
+        // Перевіряємо щоденний бонус
+        const updatedDailyBonus = checkDailyBonusAvailability(dailyBonus);
+        
+        if (mountedRef.current) {
+          setState({
+            bonuses: ensureBonusesArray(bonuses),
+            dailyBonus: updatedDailyBonus,
+            loading: false,
+            initialized: true,
+            lastLoadedUserId: currentUserId,
+          });
+        }
+
+      } catch (error) {
+        console.error('Error loading bonuses:', error);
+        if (mountedRef.current) {
+          setState({
+            bonuses: [...defaultBonuses],
+            dailyBonus: { ...defaultDailyBonus },
+            loading: false,
+            initialized: true,
+            lastLoadedUserId: currentUserId,
+          });
+        }
+      } finally {
+        loadingRef.current = false;
+      }
+    };
+
+    loadData();
+
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []); // Порожній масив залежностей
+
+  // Callback функції
+  const claimDailyBonus = useCallback(() => {
+    const today = new Date().toDateString();
+    
+    setState(prev => {
+      const updatedDailyBonus = {
+        ...prev.dailyBonus,
+        claimed: true,
+        lastClaimedDate: today,
+      };
+      
+      const safeBonuses = ensureBonusesArray(prev.bonuses);
+      
+      // Асинхронне збереження
+      saveToStorage(safeBonuses, updatedDailyBonus, currentUserId || undefined);
+      
+      return {
+        ...prev,
+        dailyBonus: updatedDailyBonus,
+      };
+    });
+  }, [saveToStorage, currentUserId]);
+
+  const unlockBonus = useCallback((bonusId: string) => {
+    setState(prev => {
+      const safeBonuses = ensureBonusesArray(prev.bonuses);
+      const updatedBonuses = safeBonuses.map(bonus => {
+        if (bonus.id === bonusId && !bonus.claimed && !bonus.unlockedAt) {
           return {
             ...bonus,
-            unlocked: true,
             unlockedAt: new Date().toISOString(),
           };
         }
-
         return bonus;
       });
-
-      // Update daily bonus
-      const today = new Date().toISOString().split('T')[0];
-      let newDailyBonus = prev.dailyBonus;
       
-      if (newDailyBonus.date !== today) {
-        newDailyBonus = {
-          date: today,
-          available: true,
-          claimed: false,
-          streak: completedToday > 0 ? newDailyBonus.streak + 1 : 0,
-          multiplier: Math.min(3, 1 + Math.floor(newDailyBonus.streak / 7) * 0.5),
-        };
-      }
-
-      const newState = {
+      saveToStorage(updatedBonuses, prev.dailyBonus, currentUserId || undefined);
+      
+      return {
         ...prev,
-        bonuses: newBonuses,
-        dailyBonus: newDailyBonus,
+        bonuses: updatedBonuses,
       };
-
-      saveBonuses(newState);
-      return newState;
     });
-  }, [setState, saveBonuses]);
+  }, [saveToStorage, currentUserId]);
 
   const claimBonus = useCallback((bonusId: string) => {
     setState(prev => {
-      const newBonuses = prev.bonuses.map(bonus => {
-        if (bonus.id === bonusId && bonus.unlocked && !bonus.claimed) {
+      const safeBonuses = ensureBonusesArray(prev.bonuses);
+      const updatedBonuses = safeBonuses.map(bonus => {
+        if (bonus.id === bonusId && !bonus.claimed && bonus.unlockedAt) {
           return {
             ...bonus,
             claimed: true,
@@ -292,50 +372,176 @@ export function useBonuses() {
         }
         return bonus;
       });
-
-      const newState = {
+      
+      saveToStorage(updatedBonuses, prev.dailyBonus, currentUserId || undefined);
+      
+      return {
         ...prev,
-        bonuses: newBonuses,
+        bonuses: updatedBonuses,
       };
-
-      saveBonuses(newState);
-      return newState;
     });
-  }, [setState, saveBonuses]);
+  }, [saveToStorage, currentUserId]);
 
-  const claimDailyBonus = useCallback(() => {
+  const checkBonusRequirements = useCallback((data: {
+    streaks?: { [habitId: string]: number };
+    totalCompletions?: number;
+    perfectDays?: number;
+    level?: number;
+    isComeback?: boolean;
+  }) => {
+    const { streaks = {}, totalCompletions = 0, perfectDays = 0, level = 1, isComeback = false } = data;
+    
     setState(prev => {
-      const newDailyBonus = {
-        ...prev.dailyBonus,
-        claimed: true,
-      };
-
-      const newState = {
-        ...prev,
-        dailyBonus: newDailyBonus,
-      };
-
-      saveBonuses(newState);
-      return newState;
+      const safeBonuses = ensureBonusesArray(prev.bonuses);
+      let hasChanges = false;
+      
+      const updatedBonuses = safeBonuses.map(bonus => {
+        if (bonus.claimed || bonus.unlockedAt) return bonus;
+        
+        let shouldUnlock = false;
+        
+        if (bonus.requirement) {
+          switch (bonus.requirement.type) {
+            case 'streak':
+              const maxStreak = Object.keys(streaks).length > 0 ? Math.max(...Object.values(streaks), 0) : 0;
+              shouldUnlock = maxStreak >= bonus.requirement.value;
+              break;
+            case 'completion':
+              shouldUnlock = totalCompletions >= bonus.requirement.value;
+              break;
+            case 'perfect_days':
+              shouldUnlock = perfectDays >= bonus.requirement.value;
+              break;
+            case 'level':
+              shouldUnlock = level >= bonus.requirement.value;
+              break;
+          }
+        } else if (bonus.type === 'special' && bonus.id === 'comeback_bonus') {
+          shouldUnlock = isComeback;
+        }
+        
+        if (shouldUnlock) {
+          hasChanges = true;
+          return {
+            ...bonus,
+            unlockedAt: new Date().toISOString(),
+          };
+        }
+        
+        return bonus;
+      });
+      
+      if (hasChanges) {
+        saveToStorage(updatedBonuses, prev.dailyBonus, currentUserId || undefined);
+        return {
+          ...prev,
+          bonuses: updatedBonuses,
+        };
+      }
+      
+      return prev;
     });
-  }, [setState, saveBonuses]);
+  }, [saveToStorage, currentUserId]);
 
+  // Getter функції
   const getAvailableBonuses = useCallback(() => {
-    return state.bonuses.filter(bonus => bonus.unlocked && !bonus.claimed);
+    const safeBonuses = ensureBonusesArray(state.bonuses);
+    return safeBonuses.filter(bonus => bonus.unlockedAt && !bonus.claimed);
   }, [state.bonuses]);
 
-  const getUnclaimedCount = useCallback(() => {
-    return state.bonuses.filter(bonus => bonus.unlocked && !bonus.claimed).length;
+  const getUnclaimedCount = useMemo(() => {
+    const safeBonuses = ensureBonusesArray(state.bonuses);
+    return safeBonuses.filter(bonus => bonus.unlockedAt && !bonus.claimed).length;
   }, [state.bonuses]);
 
+  const getClaimedBonuses = useCallback(() => {
+    const safeBonuses = ensureBonusesArray(state.bonuses);
+    return safeBonuses.filter(bonus => bonus.claimed);
+  }, [state.bonuses]);
+
+  const getBonusByType = useCallback((type: Bonus['type']) => {
+    const safeBonuses = ensureBonusesArray(state.bonuses);
+    return safeBonuses.filter(bonus => bonus.type === type);
+  }, [state.bonuses]);
+
+  const getTotalRewardsEarned = useCallback(() => {
+    const claimedBonuses = getClaimedBonuses();
+    return claimedBonuses.reduce((total, bonus) => ({
+      experience: total.experience + (bonus.reward?.experience || 0),
+      coins: total.coins + (bonus.reward?.coins || 0),
+      healthBoost: total.healthBoost + (bonus.reward?.healthBoost || 0),
+    }), { experience: 0, coins: 0, healthBoost: 0 });
+  }, [getClaimedBonuses]);
+
+  const addCustomBonus = useCallback((bonus: Omit<Bonus, 'id' | 'claimed'>) => {
+    const newBonus: Bonus = {
+      ...bonus,
+      id: `custom_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      claimed: false,
+      unlockedAt: new Date().toISOString(),
+    };
+    
+    setState(prev => {
+      const safeBonuses = ensureBonusesArray(prev.bonuses);
+      const updatedBonuses = [...safeBonuses, newBonus];
+      
+      saveToStorage(updatedBonuses, prev.dailyBonus, currentUserId || undefined);
+      
+      return {
+        ...prev,
+        bonuses: updatedBonuses,
+      };
+    });
+    
+    return newBonus.id;
+  }, [saveToStorage, currentUserId]);
+
+  const removeExpiredBonuses = useCallback(() => {
+    const now = new Date();
+    
+    setState(prev => {
+      const safeBonuses = ensureBonusesArray(prev.bonuses);
+      const updatedBonuses = safeBonuses.filter(bonus => {
+        if (!bonus.expiresAt) return true;
+        return new Date(bonus.expiresAt) > now;
+      });
+      
+      if (updatedBonuses.length !== safeBonuses.length) {
+        saveToStorage(updatedBonuses, prev.dailyBonus, currentUserId || undefined);
+        return {
+          ...prev,
+          bonuses: updatedBonuses,
+        };
+      }
+      
+      return prev;
+    });
+  }, [saveToStorage, currentUserId]);
+
+  // Cleanup effect для removeExpiredBonuses
+  useEffect(() => {
+    if (!state.initialized) return;
+    
+    const interval = setInterval(removeExpiredBonuses, 60000);
+    return () => clearInterval(interval);
+  }, [removeExpiredBonuses, state.initialized]);
+
+  // Безпечне повернення даних
   return {
-    bonuses: state.bonuses,
-    dailyBonus: state.dailyBonus,
-    weeklyChallenge: state.weeklyChallenge,
-    checkBonuses,
-    claimBonus,
+    bonuses: ensureBonusesArray(state.bonuses),
+    dailyBonus: ensureDailyBonus(state.dailyBonus),
+    loading: state.loading || false,
+    initialized: state.initialized || false,
     claimDailyBonus,
+    unlockBonus,
+    claimBonus,
+    checkBonusRequirements,
     getAvailableBonuses,
     getUnclaimedCount,
+    getClaimedBonuses,
+    getBonusByType,
+    getTotalRewardsEarned,
+    addCustomBonus,
+    removeExpiredBonuses,
   };
 }

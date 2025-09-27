@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import {
+  addDoc,
   collection,
   doc,
   getDoc,
@@ -90,10 +91,12 @@ export class FirebaseService {
 
   // User Management
   async createUser(user: { email: string; password: string; name: string }): Promise<string> {
-    const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     const userData = {
-      ...user,
       id: userId,
+      email: user.email,
+      name: user.name,
+      password: user.password, // В реальному додатку треба хешувати пароль
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       lastLoginAt: serverTimestamp(),
@@ -103,18 +106,28 @@ export class FirebaseService {
 
     return this.executeWithOfflineSupport(
       async () => {
-        await setDoc(doc(db, 'users', userId), userData);
+        // Створюємо користувача в Firebase
+        const docRef = await addDoc(collection(db, 'users'), userData);
+        console.log('✅ User created in Firebase with ID:', docRef.id);
         return userId;
       },
       async () => {
         // Offline fallback - store in AsyncStorage
         const users = await this.getOfflineUsers();
-        users.push({ ...userData, createdAt: new Date().toISOString() });
+        const userWithTimestamp = {
+          ...userData,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          lastLoginAt: new Date().toISOString(),
+        };
+        users.push(userWithTimestamp);
         await AsyncStorage.setItem('@riseup_offline_users', JSON.stringify(users));
+        console.log('✅ User stored offline');
         return userId;
       },
       async () => {
-        await setDoc(doc(db, 'users', userId), userData);
+        const docRef = await addDoc(collection(db, 'users'), userData);
+        console.log('✅ User queued for Firebase sync');
       }
     );
   }
@@ -122,8 +135,26 @@ export class FirebaseService {
   async getUser(userId: string): Promise<User | null> {
     return this.executeWithOfflineSupport(
       async () => {
-        const userDoc = await getDoc(doc(db, 'users', userId));
-        return userDoc.exists() ? { id: userDoc.id, ...userDoc.data() } as User : null;
+        // Шукаємо користувача за ID в колекції
+        const usersQuery = query(
+          collection(db, 'users'),
+          where('id', '==', userId),
+          limit(1)
+        );
+        const querySnapshot = await getDocs(usersQuery);
+        
+        if (!querySnapshot.empty) {
+          const userDoc = querySnapshot.docs[0];
+          const userData = userDoc.data();
+          return {
+            id: userData.id,
+            email: userData.email,
+            name: userData.name,
+            avatar: userData.avatar,
+            createdAt: userData.createdAt?.toDate?.()?.toISOString() || userData.createdAt,
+          } as User;
+        }
+        return null;
       },
       async () => {
         const users = await this.getOfflineUsers();
@@ -171,21 +202,38 @@ export class FirebaseService {
         const querySnapshot = await getDocs(usersQuery);
         if (!querySnapshot.empty) {
           const userDoc = querySnapshot.docs[0];
-          const user = { id: userDoc.id, ...userDoc.data() } as User;
+          const userData = userDoc.data();
+          const user = {
+            id: userData.id,
+            email: userData.email,
+            name: userData.name,
+            avatar: userData.avatar,
+            createdAt: userData.createdAt?.toDate?.()?.toISOString() || userData.createdAt,
+          } as User;
           
           // Update last login
-          await updateDoc(doc(db, 'users', user.id), {
+          await updateDoc(userDoc.ref, {
             lastLoginAt: serverTimestamp(),
             version: increment(1)
           });
           
+          console.log('✅ User authenticated via Firebase:', user.email);
           return user;
         }
+        console.log('❌ User not found in Firebase');
         return null;
       },
       async () => {
         const users = await this.getOfflineUsers();
-        return users.find(u => u.email === email && u.password === password) || null;
+        const user = users.find(u => u.email === email && u.password === password);
+        if (user) {
+          console.log('✅ User authenticated offline:', user.email);
+          // Видаляємо пароль з відповіді
+          const { password: _, ...userWithoutPassword } = user;
+          return userWithoutPassword as User;
+        }
+        console.log('❌ User not found offline');
+        return null;
       }
     );
   }
@@ -392,7 +440,7 @@ export class FirebaseService {
   async saveBonuses(userId: string, bonuses: any): Promise<void> {
     const bonusesData = {
       userId,
-      bonuses,
+      ...bonuses,
       updatedAt: serverTimestamp(),
       version: increment(1)
     };
@@ -414,13 +462,59 @@ export class FirebaseService {
     return this.executeWithOfflineSupport(
       async () => {
         const bonusesDoc = await getDoc(doc(db, 'user_bonuses', userId));
-        return bonusesDoc.exists() ? bonusesDoc.data().bonuses : null;
+        if (bonusesDoc.exists()) {
+          const data = bonusesDoc.data();
+          return {
+            bonuses: data.bonuses,
+            dailyBonus: data.dailyBonus,
+          };
+        }
+        return null;
       },
       async () => {
         const bonusesData = await AsyncStorage.getItem(`@riseup_bonuses_${userId}`);
         return bonusesData ? JSON.parse(bonusesData) : null;
       }
     );
+  }
+
+  // Coins Management
+  async saveCoins(userId: string, coinsData: any): Promise<void> {
+    const data = {
+      userId,
+      ...coinsData,
+      updatedAt: serverTimestamp(),
+      version: increment(1)
+    };
+
+    return this.executeWithOfflineSupport(
+      async () => {
+        await setDoc(doc(db, 'user_coins', userId), data);
+      },
+      async () => {
+        await AsyncStorage.setItem(`@riseup_coins_${userId}`, JSON.stringify(coinsData));
+      },
+      async () => {
+        await setDoc(doc(db, 'user_coins', userId), data);
+      }
+    );
+  }
+
+  async getCoins(userId: string): Promise<any> {
+    return this.executeWithOfflineSupport(
+      async () => {
+        const coinsDoc = await getDoc(doc(db, 'user_coins', userId));
+        return coinsDoc.exists() ? coinsDoc.data() : null;
+      },
+      async () => {
+        const coinsData = await AsyncStorage.getItem(`@riseup_coins_${userId}`);
+        return coinsData ? JSON.parse(coinsData) : null;
+      }
+    );
+  }
+
+  async savePurchases(userId: string, purchases: any[]): Promise<void> {
+    return this.saveCoins(userId, { purchases });
   }
 
   // Analytics and Insights

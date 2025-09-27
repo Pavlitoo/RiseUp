@@ -5,7 +5,7 @@ import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { useLanguageKey, useTranslations } from '@/hooks/use-translations';
+import { useTranslations } from '@/hooks/use-translations';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 export default function MoreTab() {
@@ -14,7 +14,6 @@ export default function MoreTab() {
   const cardBackground = useThemeColor({}, 'cardBackground');
   const borderColor = useThemeColor({}, 'border');
   const primaryColor = useThemeColor({}, 'primary');
-  const languageKey = useLanguageKey();
 
   const menuItems = [
     {
@@ -55,7 +54,7 @@ export default function MoreTab() {
   ];
 
   return (
-    <ScrollView key={languageKey} style={[styles.container, { backgroundColor }]}>
+    <ScrollView style={[styles.container, { backgroundColor }]}>
       <ThemedView style={styles.content}>
         <Animated.View entering={FadeIn.duration(800)} style={styles.header}>
           <ThemedText type="title" style={styles.title}>
